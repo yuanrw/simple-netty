@@ -1,8 +1,11 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.buffer.allocator.ByteBufAllocator;
+import com.simple.netty.common.internal.ReferenceCounted;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.GatheringByteChannel;
 
 /**
  * Date: 2019-12-14
@@ -10,15 +13,26 @@ import java.nio.ByteBuffer;
  *
  * @author yrw
  */
-public abstract class ByteBuf {
+public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract int capacity();
+
+    public abstract ByteBuf capacity(int newCapacity);
 
     public abstract int maxCapacity();
 
     public abstract ByteBufAllocator alloc();
 
     public abstract boolean isDirect();
+
+
+    public abstract int readerIndex();
+
+    public abstract ByteBuf readerIndex(int readerIndex);
+
+    public abstract int writerIndex();
+
+    public abstract ByteBuf writerIndex(int writerIndex);
 
 
     public abstract int readableBytes();
@@ -49,7 +63,11 @@ public abstract class ByteBuf {
 
     public abstract byte getByte(int index);
 
+    public abstract short getShort(int index);
+
     public abstract int getInt(int index);
+
+    public abstract long getLong(int index);
 
     public abstract char getChar(int index);
 
@@ -57,14 +75,35 @@ public abstract class ByteBuf {
 
     public abstract ByteBuf getBytes(int index, ByteBuf dst);
 
+    public abstract ByteBuf getBytes(int index, ByteBuf dst, int length);
+
+    public abstract ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length);
+
     public abstract ByteBuf getBytes(int index, byte[] dst);
+
+    public abstract ByteBuf getBytes(int index, ByteBuffer dst);
+
+    public abstract ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length);
+
+    public abstract int getBytes(int index, GatheringByteChannel out, int length) throws IOException;
+
+    public abstract int getBytes(int index, FileChannel out, long position, int length) throws IOException;
+
+
+    public abstract ByteBuf setBytes(int index, byte[] src, int srcIndex, int length);
+
+    public abstract ByteBuf setBytes(int index, ByteBuffer src);
 
 
     public abstract boolean readBoolean();
 
     public abstract byte readByte();
 
+    public abstract short readShort();
+
     public abstract int readInt();
+
+    public abstract long readLong();
 
     public abstract char readChar();
 
@@ -72,30 +111,44 @@ public abstract class ByteBuf {
 
     public abstract ByteBuf readBytes(int length);
 
-    public abstract ByteBuf readSlice(int length);
-
-    public abstract ByteBuf readRetainedSlice(int length);
-
     public abstract ByteBuf readBytes(ByteBuf dst);
+
+    public abstract ByteBuf readBytes(ByteBuf dst, int length);
 
     public abstract ByteBuf readBytes(byte[] dst);
 
+    public abstract ByteBuf readBytes(byte[] dst, int dstIndex, int length);
+
     public abstract ByteBuf readBytes(ByteBuffer dst);
+
+    public abstract int readBytes(GatheringByteChannel out, int length) throws IOException;
+
+    public abstract int readBytes(FileChannel out, long position, int length) throws IOException;
 
 
     public abstract ByteBuf writeBoolean(boolean value);
 
     public abstract ByteBuf writeByte(int value);
 
-    public abstract ByteBuf writeShortLE(int value);
-
     public abstract ByteBuf writeInt(int value);
+
+    public abstract ByteBuf writeShort(int value);
 
     public abstract ByteBuf writeChar(int value);
 
     public abstract ByteBuf writeBytes(ByteBuf src);
 
+    public abstract ByteBuf writeBytes(ByteBuf src, int length);
+
     public abstract ByteBuf writeBytes(byte[] src);
 
+    public abstract ByteBuf writeBytes(byte[] src, int srcIndex, int length);
+
     public abstract ByteBuf writeBytes(ByteBuffer src);
+
+    public abstract ByteBuf writeBytes(ByteBuf src, int srcIndex, int length);
+
+    boolean isAccessible() {
+        return refCnt() != 0;
+    }
 }

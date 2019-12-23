@@ -1,4 +1,4 @@
-package com.simple.netty.buffer.allocator;
+package com.simple.netty.buffer;
 
 import com.simple.netty.buffer.ByteBuf;
 import com.simple.netty.buffer.CompositeByteBuf;
