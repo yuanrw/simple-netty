@@ -1,6 +1,6 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.IllegalReferenceCountException;
+import com.simple.netty.common.internal.IllegalReferenceCountException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -16,9 +16,13 @@ import java.nio.channels.GatheringByteChannel;
 public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     PoolChunk<T> chunk;
+
+    /**
+     * bitmap
+     */
     long handle;
+
     T memory;
-    int offset;
 
     /**
      * 字节长度
@@ -31,7 +35,6 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     int maxLength;
 
     PoolThreadCache cache;
-    ByteBuffer tmpNioBuf;
 
     private ByteBufAllocator allocator;
 
@@ -39,29 +42,25 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         super(maxCapacity);
     }
 
-    void init(PoolChunk<T> chunk, ByteBuffer nioBuffer,
-              long handle, int offset, int length, int maxLength, PoolThreadCache cache) {
-        init0(chunk, nioBuffer, handle, offset, length, maxLength, cache);
+    void init(PoolChunk<T> chunk, long handle, int length, int maxLength, PoolThreadCache cache) {
+        init0(chunk, handle, length, maxLength, cache);
     }
 
-    private void init0(PoolChunk<T> chunk, ByteBuffer nioBuffer,
-                       long handle, int offset, int length, int maxLength, PoolThreadCache cache) {
+    private void init0(PoolChunk<T> chunk, long handle, int length, int maxLength, PoolThreadCache cache) {
         assert handle >= 0;
         assert chunk != null;
 
         this.chunk = chunk;
         memory = chunk.memory;
-        tmpNioBuf = nioBuffer;
         allocator = chunk.arena.parent;
         this.cache = cache;
         this.handle = handle;
-        this.offset = offset;
         this.length = length;
         this.maxLength = maxLength;
     }
 
     void initUnpooled(PoolChunk<T> chunk, int length) {
-        init0(chunk, null, 0, chunk.offset, length, length, null);
+        init0(chunk, 0, length, length, null);
     }
 
     /**
@@ -134,7 +133,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     protected final int idx(int index) {
-        return offset + index;
+        return index;
     }
 
     /**
@@ -143,11 +142,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
      * @return
      */
     public final ByteBuffer internalNioBuffer() {
-        ByteBuffer tmpNioBuf = this.tmpNioBuf;
-        if (tmpNioBuf == null) {
-            this.tmpNioBuf = tmpNioBuf = newInternalNioBuffer(memory);
-        }
-        return tmpNioBuf;
+        return newInternalNioBuffer(memory);
     }
 
     protected abstract ByteBuffer newInternalNioBuffer(T memory);

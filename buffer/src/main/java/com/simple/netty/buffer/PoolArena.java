@@ -234,9 +234,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             //根据下标，获取相应的节点
             final PoolSubPage<T> head = table[tableIdx];
 
-            /**
-             * 分配的时候需要加锁
-             */
+            //分配的时候需要加锁
             synchronized (head) {
                 final PoolSubPage<T> s = head.next;
                 if (s != head) {
@@ -244,7 +242,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
                     assert s.doNotDestroy && s.elemSize == normCapacity;
                     long handle = s.allocate();
                     assert handle >= 0;
-                    s.chunk.initBufWithSubPage(buf, null, handle, reqCapacity);
+                    s.chunk.initBufWithSubPage(buf, handle, reqCapacity);
 
                     //增加计数
                     incTinySmallAllocation(tiny);
@@ -286,7 +284,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         }
 
         // 增加一个新的内存块
-        PoolChunk<T> c = newChunk(pageSize, maxOrder, pageShifts, chunkSize);
+        PoolChunk<T> c = newChunk(pageSize, maxOrder, chunkSize);
         boolean success = c.allocate(buf, reqCapacity, normCapacity);
         assert success;
 
@@ -323,7 +321,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
                 return;
             }
 
-            freeChunk(chunk, handle, sizeClass, nioBuffer, false);
+            freeChunk(chunk, handle, sizeClass, false);
         }
     }
 
@@ -334,7 +332,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         return isTiny(normCapacity) ? SizeClass.Tiny : SizeClass.Small;
     }
 
-    void freeChunk(PoolChunk<T> chunk, long handle, SizeClass sizeClass, ByteBuffer nioBuffer, boolean finalizer) {
+    void freeChunk(PoolChunk<T> chunk, long handle, SizeClass sizeClass, boolean finalizer) {
         final boolean destroyChunk;
         synchronized (this) {
             // We only call this if freeChunk is not called because of the PoolThreadCache finalizer as otherwise this
@@ -354,7 +352,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
                         throw new Error();
                 }
             }
-            destroyChunk = !chunk.parent.free(chunk, handle, nioBuffer);
+            destroyChunk = !chunk.parent.free(chunk, handle);
         }
         if (destroyChunk) {
             // destroyChunk not need to be called while holding the synchronized lock.
@@ -561,7 +559,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         return max(0, val);
     }
 
-    protected abstract PoolChunk<T> newChunk(int pageSize, int maxOrder, int pageShifts, int chunkSize);
+    protected abstract PoolChunk<T> newChunk(int pageSize, int maxOrder, int chunkSize);
     protected abstract PoolChunk<T> newUnpooledChunk(int capacity);
     protected abstract PooledByteBuf<T> newByteBuf(int maxCapacity);
     protected abstract void memoryCopy(T src, int srcOffset, PooledByteBuf<T> dst, int length);
@@ -631,13 +629,13 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         }
 
         @Override
-        protected PoolChunk<byte[]> newChunk(int pageSize, int maxOrder, int pageShifts, int chunkSize) {
-            return new PoolChunk<>(this, newByteArray(chunkSize), pageSize, maxOrder, pageShifts, chunkSize, 0);
+        protected PoolChunk<byte[]> newChunk(int pageSize, int maxOrder, int chunkSize) {
+            return new PoolChunk<>(this, newByteArray(chunkSize), pageSize, maxOrder, chunkSize);
         }
 
         @Override
         protected PoolChunk<byte[]> newUnpooledChunk(int capacity) {
-            return new PoolChunk<>(this, newByteArray(capacity), capacity, 0);
+            return new PoolChunk<>(this, newByteArray(capacity), capacity);
         }
 
         @Override
@@ -647,8 +645,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
 
         @Override
         protected PooledByteBuf<byte[]> newByteBuf(int maxCapacity) {
-            return HAS_UNSAFE ? PooledUnsafeHeapByteBuf.newUnsafeInstance(maxCapacity)
-                : PooledHeapByteBuf.newInstance(maxCapacity);
+            return PooledHeapByteBuf.newInstance(maxCapacity);
         }
 
         @Override
@@ -657,7 +654,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
                 return;
             }
 
-            System.arraycopy(src, srcOffset, dst.memory, dst.offset, length);
+            System.arraycopy(src, srcOffset, dst.memory, 0, length);
         }
     }
 
@@ -678,8 +675,6 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         }
 
         private int offsetCacheLine(ByteBuffer memory) {
-            // We can only calculate the offset if Unsafe is present as otherwise directBufferAddress(...) will
-            // throw an NPE.
             int remainder = HAS_UNSAFE
                 ? (int) (PlatformDependent.directBufferAddress(memory) & directMemoryCacheAlignmentMask)
                 : 0;
@@ -689,30 +684,27 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         }
 
         @Override
-        protected PoolChunk<ByteBuffer> newChunk(int pageSize, int maxOrder,
-                                                 int pageShifts, int chunkSize) {
+        protected PoolChunk<ByteBuffer> newChunk(int pageSize, int maxOrder, int chunkSize) {
             if (directMemoryCacheAlignment == 0) {
                 return new PoolChunk<>(this,
                     allocateDirect(chunkSize), pageSize, maxOrder,
-                    pageShifts, chunkSize, 0);
+                    chunkSize);
             }
             final ByteBuffer memory = allocateDirect(chunkSize
                 + directMemoryCacheAlignment);
             return new PoolChunk<>(this, memory, pageSize,
-                maxOrder, pageShifts, chunkSize,
-                offsetCacheLine(memory));
+                maxOrder, chunkSize);
         }
 
         @Override
         protected PoolChunk<ByteBuffer> newUnpooledChunk(int capacity) {
             if (directMemoryCacheAlignment == 0) {
                 return new PoolChunk<>(this,
-                    allocateDirect(capacity), capacity, 0);
+                    allocateDirect(capacity), capacity);
             }
             final ByteBuffer memory = allocateDirect(capacity
                 + directMemoryCacheAlignment);
-            return new PoolChunk<>(this, memory, capacity,
-                offsetCacheLine(memory));
+            return new PoolChunk<>(this, memory, capacity);
         }
 
         private static ByteBuffer allocateDirect(int capacity) {
@@ -731,11 +723,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
 
         @Override
         protected PooledByteBuf<ByteBuffer> newByteBuf(int maxCapacity) {
-            if (HAS_UNSAFE) {
-                return PooledUnsafeDirectByteBuf.newInstance(maxCapacity);
-            } else {
-                return PooledDirectByteBuf.newInstance(maxCapacity);
-            }
+            return PooledDirectByteBuf.newInstance(maxCapacity);
         }
 
         @Override
@@ -747,13 +735,13 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             if (HAS_UNSAFE) {
                 PlatformDependent.copyMemory(
                     PlatformDependent.directBufferAddress(src) + srcOffset,
-                    PlatformDependent.directBufferAddress(dstBuf.memory) + dstBuf.offset, length);
+                    PlatformDependent.directBufferAddress(dstBuf.memory), length);
             } else {
                 // We must duplicate the NIO buffers because they may be accessed by other Netty buffers.
                 src = src.duplicate();
                 ByteBuffer dst = dstBuf.internalNioBuffer();
                 src.position(srcOffset).limit(srcOffset + length);
-                dst.position(dstBuf.offset);
+                dst.position(0);
                 dst.put(src);
             }
         }

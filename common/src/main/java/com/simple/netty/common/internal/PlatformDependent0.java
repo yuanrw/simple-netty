@@ -31,12 +31,15 @@ import java.security.PrivilegedAction;
 import static com.simple.netty.common.internal.ObjectUtil.checkNotNull;
 
 /**
- * 使用unsafe类自主管理内存
  * The {@link PlatformDependent} operations which requires access to {@code sun.misc.*}.
  */
-@SuppressJava6Requirement(reason = "Unsafe access is guarded")
 final class PlatformDependent0 {
 
+    static final Unsafe UNSAFE;
+    // constants borrowed from murmur3
+    static final int HASH_CODE_ASCII_SEED = 0xc2b2ae35;
+    static final int HASH_CODE_C1 = 0xcc9e2d51;
+    static final int HASH_CODE_C2 = 0x1b873593;
     private static final Logger logger = LoggerFactory.getLogger(PlatformDependent0.class);
     private static final long ADDRESS_FIELD_OFFSET;
     private static final long BYTE_ARRAY_BASE_OFFSET;
@@ -45,18 +48,9 @@ final class PlatformDependent0 {
     private static final Method ALLOCATE_ARRAY_METHOD;
     private static final int JAVA_VERSION = javaVersion0();
     private static final boolean IS_ANDROID = isAndroid0();
-
     private static final Throwable UNSAFE_UNAVAILABILITY_CAUSE;
     private static final Object INTERNAL_UNSAFE;
     private static final boolean IS_EXPLICIT_TRY_REFLECTION_SET_ACCESSIBLE = explicitTryReflectionSetAccessible0();
-
-    static final Unsafe UNSAFE;
-
-    // constants borrowed from murmur3
-    static final int HASH_CODE_ASCII_SEED = 0xc2b2ae35;
-    static final int HASH_CODE_C1 = 0xcc9e2d51;
-    static final int HASH_CODE_C2 = 0x1b873593;
-
     /**
      * Limits the number of bytes to copy per {@link Unsafe#copyMemory(long, long, long)} to allow safepoint polling
      * during a large copy.
@@ -386,6 +380,9 @@ final class PlatformDependent0 {
 
         logger.debug("java.nio.DirectByteBuffer.<init>(long, int): {}",
             DIRECT_BUFFER_CONSTRUCTOR != null ? "available" : "unavailable");
+    }
+
+    private PlatformDependent0() {
     }
 
     static boolean isExplicitNoUnsafe() {
@@ -874,8 +871,5 @@ final class PlatformDependent0 {
         } else {
             return version[0];
         }
-    }
-
-    private PlatformDependent0() {
     }
 }

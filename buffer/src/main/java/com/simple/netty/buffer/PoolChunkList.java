@@ -1,8 +1,7 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.StringUtil;
+import com.simple.netty.common.internal.StringUtil;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -92,8 +91,8 @@ public class PoolChunkList<T> implements PoolChunkListMetric {
         return false;
     }
 
-    boolean free(PoolChunk<T> chunk, long handle, ByteBuffer nioBuffer) {
-        chunk.free(handle, nioBuffer);
+    boolean free(PoolChunk<T> chunk, long handle) {
+        chunk.free(handle);
         if (chunk.usage() < minUsage) {
             remove(chunk);
             return move0(chunk);

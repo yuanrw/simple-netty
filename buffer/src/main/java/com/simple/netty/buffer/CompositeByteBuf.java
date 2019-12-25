@@ -1,5 +1,7 @@
 package com.simple.netty.buffer;
 
+import com.simple.netty.common.internal.ReferenceCounted;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -15,6 +17,16 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf {
 
     protected CompositeByteBuf(int maxCapacity) {
         super(maxCapacity);
+    }
+
+    @Override
+    public boolean hasArray() {
+        return false;
+    }
+
+    @Override
+    public byte[] array() {
+        return new byte[0];
     }
 
     @Override
@@ -115,6 +127,11 @@ public class CompositeByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     public int refCnt() {
         return 0;
+    }
+
+    @Override
+    public ReferenceCounted touch(Object hint) {
+        return null;
     }
 
     @Override

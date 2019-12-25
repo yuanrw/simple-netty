@@ -1,6 +1,7 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.internal.ReferenceCountUpdater;
+import com.simple.netty.common.internal.IllegalReferenceCountException;
+import com.simple.netty.common.internal.PlatformDependent;
 import com.simple.netty.common.internal.ReferenceCounted;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -20,45 +21,15 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     /**
      * 计数域的偏移地址
      */
-    private static final long REFCNT_FIELD_OFFSET =
-        ReferenceCountUpdater.getUnsafeOffset(AbstractReferenceCountedByteBuf.class, "refCnt");
-
-    private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> AIF_UPDATER =
-        AtomicIntegerFieldUpdater.newUpdater(AbstractReferenceCountedByteBuf.class, "refCnt");
-
-    private static final ReferenceCountUpdater<AbstractReferenceCountedByteBuf> updater =
-        new ReferenceCountUpdater<AbstractReferenceCountedByteBuf>() {
-            @Override
-            protected AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> updater() {
-                return AIF_UPDATER;
-            }
-
-            @Override
-            protected long unsafeOffset() {
-                return REFCNT_FIELD_OFFSET;
-            }
-        };
+    private static final long REFCNT_FIELD_OFFSET = getUnsafeOffset();
 
     /**
      * volatile可以保证属性可见，但不能保证原子性
      */
-    private volatile int refCnt = UPDATER.initialValue();
+    private volatile int refCnt = 0;
 
-    /**
-     * 计数器
-     */
-    private static final ReferenceCountUpdater<AbstractReferenceCountedByteBuf> UPDATER =
-        new ReferenceCountUpdater<AbstractReferenceCountedByteBuf>() {
-            @Override
-            protected AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> updater() {
-                return AIF_UPDATER;
-            }
-
-            @Override
-            protected long unsafeOffset() {
-                return REFCNT_FIELD_OFFSET;
-            }
-        };
+    private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> UPDATER =
+        AtomicIntegerFieldUpdater.newUpdater(AbstractReferenceCountedByteBuf.class, "refCnt");
 
     protected AbstractReferenceCountedByteBuf(int maxCapacity) {
         super(maxCapacity);
@@ -66,30 +37,78 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     @Override
     public ReferenceCounted retain() {
-        return UPDATER.retain(this);
+        UPDATER.getAndAdd(this, 1);
+        return this;
     }
 
     @Override
     public ReferenceCounted retain(int increment) {
-        return UPDATER.retain(this, increment);
+        UPDATER.getAndAdd(this, increment);
+        return this;
     }
 
     @Override
     public boolean release() {
-        return UPDATER.release(this);
+        int cnt = nonVolatileRawCnt();
+        return cnt == 1 ? tryFinalRelease0(1) : nonFinalRelease0(1, cnt);
+    }
+
+    private boolean tryFinalRelease0(int expectRawCnt) {
+        return UPDATER.compareAndSet(this, expectRawCnt, 0);
+    }
+
+    private boolean nonFinalRelease0(int decrement, int expectRawCnt) {
+        if (decrement < expectRawCnt
+            && UPDATER.compareAndSet(this, expectRawCnt, expectRawCnt - decrement)) {
+            return false;
+        }
+        for (; ; ) {
+            int cnt = UPDATER.get(this);
+            if (decrement == cnt) {
+                if (tryFinalRelease0(decrement)) {
+                    return true;
+                }
+            } else if (decrement < cnt) {
+                if (UPDATER.compareAndSet(this, cnt, cnt - decrement)) {
+                    return false;
+                }
+            } else {
+                throw new IllegalReferenceCountException(cnt, -decrement);
+            }
+            //没成功
+            // this benefits throughput under high contention
+            Thread.yield();
+        }
+    }
+
+    private int nonVolatileRawCnt() {
+        return REFCNT_FIELD_OFFSET != -1 ? PlatformDependent.getInt(this, REFCNT_FIELD_OFFSET)
+            : UPDATER.get(this);
     }
 
     @Override
     public boolean release(int decrement) {
-        return UPDATER.release(this, decrement);
-    }
-
-    final void setIndex0(int readerIndex, int writerIndex) {
-        this.readerIndex = readerIndex;
-        this.writerIndex = writerIndex;
+        UPDATER.getAndAdd(this, -decrement);
+        return true;
     }
 
     protected final void resetRefCnt() {
-        updater.resetRefCnt(this);
+        UPDATER.set(this, 0);
+    }
+
+    @Override
+    public ReferenceCounted touch() {
+        return touch(null);
+    }
+
+    private static long getUnsafeOffset() {
+        try {
+            if (PlatformDependent.hasUnsafe()) {
+                return PlatformDependent.objectFieldOffset(AbstractReferenceCountedByteBuf.class.getDeclaredField("refCnt"));
+            }
+        } catch (Throwable ignore) {
+            // fall-back
+        }
+        return -1;
     }
 }

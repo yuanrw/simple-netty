@@ -16,7 +16,6 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
      * 映射到PoolChunk的叶子节点
      */
     private final int memoryMapIdx;
-    private final int runOffset;
 
     /**
      * 叶子节点大小
@@ -34,7 +33,7 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
 
     boolean doNotDestroy;
     /**
-     * 每个单元大小
+     * 每个单元大小，pageSize/bitmapLength
      */
     int elemSize;
 
@@ -58,16 +57,14 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
     PoolSubPage(int pageSize) {
         chunk = null;
         memoryMapIdx = -1;
-        runOffset = -1;
         elemSize = -1;
         this.pageSize = pageSize;
         bitmap = null;
     }
 
-    PoolSubPage(PoolSubPage<T> head, PoolChunk<T> chunk, int memoryMapIdx, int runOffset, int pageSize, int elemSize) {
+    PoolSubPage(PoolSubPage<T> head, PoolChunk<T> chunk, int memoryMapIdx, int pageSize, int elemSize) {
         this.chunk = chunk;
         this.memoryMapIdx = memoryMapIdx;
-        this.runOffset = runOffset;
         this.pageSize = pageSize;
         bitmap = new long[pageSize >>> 10];
         init(head, elemSize);
@@ -110,7 +107,9 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
     }
 
     /**
-     * 分配内存，返回内存块对应index
+     * 分配内存
+     *
+     * @return bitmap
      */
     long allocate() {
         if (elemSize == 0) {
@@ -124,18 +123,19 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
         //获取可用的element index
         final int bitmapIdx = getNextAvail();
 
-        //高26位，这是第几个long
+        //高26位，第几个long
         int q = bitmapIdx >>> 6;
 
-        //低6位，这个long的第几位
+        //低6位，long的第几位
         int r = bitmapIdx & 63;
 
         //验证bitmap合法
         assert (bitmap[q] >>> r & 1) == 0;
 
-        //取出对应的bit
+        //把对应的bit位变为1
         bitmap[q] |= 1L << r;
 
+        //全部分配完，这个subPage从池子中移除
         if (--numAvail == 0) {
             removeFromPool();
         }
@@ -151,6 +151,13 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
         prev = null;
     }
 
+    /**
+     * 低32位=memoryMapIdx
+     * 高32位=subPageIdx
+     *
+     * @param bitmapIdx
+     * @return bitmap
+     */
     private long toHandle(int bitmapIdx) {
         return 0x4000000000000000L | (long) bitmapIdx << 32 | memoryMapIdx;
     }
@@ -202,27 +209,70 @@ public class PoolSubPage<T> implements PoolSubPageMetric {
 
     @Override
     public int maxNumElements() {
-        return 0;
+        return maxNumElems;
     }
 
     @Override
     public int numAvailable() {
-        return 0;
+        return numAvail;
     }
 
     @Override
     public int elementSize() {
-        return 0;
+        return elemSize;
     }
 
     @Override
     public int pageSize() {
-        return 0;
+        return pageSize;
+    }
+
+    /**
+     * 判断subPage是否被使用
+     *
+     * @return true被使用，false不被使用，可以释放
+     */
+    boolean free(PoolSubPage<T> head, int bitmapIdx) {
+        if (elemSize == 0) {
+            return true;
+        }
+        int q = bitmapIdx >>> 6;
+        int r = bitmapIdx & 63;
+        assert (bitmap[q] >>> r & 1) != 0;
+        bitmap[q] ^= 1L << r;
+
+        //设置为可用
+        setNextAvail(bitmapIdx);
+
+        if (numAvail++ == 0) {
+            //第一个节点
+            addToPool(head);
+            return true;
+        }
+
+        if (numAvail != maxNumElems) {
+            return true;
+        } else {
+            // SubPage 所有element没有被使用 (numAvail == maxNumElems)
+            if (prev == next) {
+                // 池中唯一一个节点，不删除
+                return true;
+            }
+
+            //不是唯一一个节点，可以删除
+            doNotDestroy = false;
+            removeFromPool();
+            return false;
+        }
     }
 
     void destroy() {
         if (chunk != null) {
             chunk.destroy();
         }
+    }
+
+    public void setNextAvail(int nextAvail) {
+        this.nextAvail = nextAvail;
     }
 }

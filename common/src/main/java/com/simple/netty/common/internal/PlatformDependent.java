@@ -47,6 +47,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 
 /**
+ * 使用unsafe类操作直接指针
  * Utility that detects various properties specific to the current runtime
  * environment, such as Java version and the availability of the
  * {@code sun.misc.Unsafe} object.
@@ -56,40 +57,30 @@ import static java.lang.Math.min;
  */
 public final class PlatformDependent {
 
+    public static final boolean BIG_ENDIAN_NATIVE_ORDER = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
     private static final Logger logger = LoggerFactory.getLogger(PlatformDependent.class);
-
     private static final Pattern MAX_DIRECT_MEMORY_SIZE_ARG_PATTERN = Pattern.compile(
         "\\s*-XX:MaxDirectMemorySize\\s*=\\s*([0-9]+)\\s*([kKmMgG]?)\\s*$");
-
     private static final boolean IS_WINDOWS = isWindows0();
     private static final boolean IS_OSX = isOsx0();
     private static final boolean IS_J9_JVM = isJ9Jvm0();
     private static final boolean IS_IVKVM_DOT_NET = isIkvmDotNet0();
-
     private static final boolean MAYBE_SUPER_USER;
-
     private static final boolean CAN_ENABLE_TCP_NODELAY_BY_DEFAULT = !isAndroid();
-
     private static final Throwable UNSAFE_UNAVAILABILITY_CAUSE = unsafeUnavailabilityCause0();
     private static final boolean DIRECT_BUFFER_PREFERRED;
     private static final long MAX_DIRECT_MEMORY = maxDirectMemory0();
-
     private static final int MPSC_CHUNK_SIZE = 1024;
     private static final int MIN_MAX_MPSC_CAPACITY = MPSC_CHUNK_SIZE * 2;
     private static final int MAX_ALLOWED_MPSC_CAPACITY = Pow2.MAX_POW2;
-
     private static final long BYTE_ARRAY_BASE_OFFSET = byteArrayBaseOffset0();
-
     private static final File TMPDIR = tmpdir0();
-
     private static final int BIT_MODE = bitMode0();
     private static final String NORMALIZED_ARCH = normalizeArch(SystemPropertyUtil.get("os.arch", ""));
     private static final String NORMALIZED_OS = normalizeOs(SystemPropertyUtil.get("os.name", ""));
-
     // keep in sync with maven's pom.xml via os.detection.classifierWithLikes!
     private static final String[] ALLOWED_LINUX_OS_CLASSIFIERS = {"fedora", "suse", "arch"};
     private static final Set<String> LINUX_OS_CLASSIFIERS;
-
     private static final int ADDRESS_SIZE = addressSize0();
     private static final boolean USE_DIRECT_BUFFER_NO_CLEANER;
     private static final AtomicLong DIRECT_MEMORY_COUNTER;
@@ -97,9 +88,6 @@ public final class PlatformDependent {
     private static final ThreadLocalRandomProvider RANDOM_PROVIDER;
     private static final Cleaner CLEANER;
     private static final int UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD;
-
-    public static final boolean BIG_ENDIAN_NATIVE_ORDER = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
-
     private static final Cleaner NOOP = new Cleaner() {
         @Override
         public void freeDirectBuffer(ByteBuffer buffer) {
@@ -108,22 +96,7 @@ public final class PlatformDependent {
     };
 
     static {
-        if (javaVersion() >= 7) {
-            RANDOM_PROVIDER = new ThreadLocalRandomProvider() {
-                @Override
-                @SuppressJava6Requirement(reason = "Usage guarded by java version check")
-                public Random current() {
-                    return java.util.concurrent.ThreadLocalRandom.current();
-                }
-            };
-        } else {
-            RANDOM_PROVIDER = new ThreadLocalRandomProvider() {
-                @Override
-                public Random current() {
-                    return ThreadLocalRandom.current();
-                }
-            };
-        }
+        RANDOM_PROVIDER = ThreadLocalRandom::current;
 
         // Here is how the system property is used:
         //
@@ -234,6 +207,10 @@ public final class PlatformDependent {
             }
         }
         LINUX_OS_CLASSIFIERS = Collections.unmodifiableSet(availableClassifiers);
+    }
+
+    private PlatformDependent() {
+        // only static method supported
     }
 
     public static boolean hasDirectBufferNoCleanerConstructor() {
@@ -398,11 +375,7 @@ public final class PlatformDependent {
      * Creates a new fastest {@link LongCounter} implementation for the current platform.
      */
     public static LongCounter newLongCounter() {
-        if (javaVersion() >= 8) {
-            return new LongAdderCounter();
-        } else {
-            return new AtomicLongCounter();
-        }
+        return new LongAdderCounter();
     }
 
     /**
@@ -846,51 +819,6 @@ public final class PlatformDependent {
         return hash;
     }
 
-    private static final class Mpsc {
-        private static final boolean USE_MPSC_CHUNKED_ARRAY_QUEUE;
-
-        private Mpsc() {
-        }
-
-        static {
-            Object unsafe = null;
-            if (hasUnsafe()) {
-                // jctools goes through its own process of initializing unsafe; of
-                // course, this requires permissions which might not be granted to calling code, so we
-                // must mark this block as privileged too
-                unsafe = AccessController.doPrivileged(new PrivilegedAction<Object>() {
-                    @Override
-                    public Object run() {
-                        // force JCTools to initialize unsafe
-                        return UnsafeAccess.UNSAFE;
-                    }
-                });
-            }
-
-            if (unsafe == null) {
-                logger.debug("org.jctools-core.MpscChunkedArrayQueue: unavailable");
-                USE_MPSC_CHUNKED_ARRAY_QUEUE = false;
-            } else {
-                logger.debug("org.jctools-core.MpscChunkedArrayQueue: available");
-                USE_MPSC_CHUNKED_ARRAY_QUEUE = true;
-            }
-        }
-
-        static <T> Queue<T> newMpscQueue(final int maxCapacity) {
-            // Calculate the max capacity which can not be bigger then MAX_ALLOWED_MPSC_CAPACITY.
-            // This is forced by the MpscChunkedArrayQueue implementation as will try to round it
-            // up to the next power of two and so will overflow otherwise.
-            final int capacity = max(min(maxCapacity, MAX_ALLOWED_MPSC_CAPACITY), MIN_MAX_MPSC_CAPACITY);
-            return USE_MPSC_CHUNKED_ARRAY_QUEUE ? new MpscChunkedArrayQueue<T>(MPSC_CHUNK_SIZE, capacity)
-                : new MpscGrowableAtomicArrayQueue<T>(MPSC_CHUNK_SIZE, capacity);
-        }
-
-        static <T> Queue<T> newMpscQueue() {
-            return USE_MPSC_CHUNKED_ARRAY_QUEUE ? new MpscUnboundedArrayQueue<T>(MPSC_CHUNK_SIZE)
-                : new MpscUnboundedAtomicArrayQueue<T>(MPSC_CHUNK_SIZE);
-        }
-    }
-
     /**
      * Create a new {@link Queue} which is safe to use for multiple producers (different threads) and a single
      * consumer (one thread!).
@@ -949,7 +877,6 @@ public final class PlatformDependent {
     /**
      * Returns a new concurrent {@link Deque}.
      */
-    @SuppressJava6Requirement(reason = "Usage guarded by java version check")
     public static <C> Deque<C> newConcurrentDeque() {
         if (javaVersion() < 7) {
             return new LinkedBlockingDeque<C>();
@@ -1430,6 +1357,55 @@ public final class PlatformDependent {
         return "unknown";
     }
 
+    private interface ThreadLocalRandomProvider {
+        Random current();
+    }
+
+    private static final class Mpsc {
+        private static final boolean USE_MPSC_CHUNKED_ARRAY_QUEUE;
+
+        static {
+            Object unsafe = null;
+            if (hasUnsafe()) {
+                // jctools goes through its own process of initializing unsafe; of
+                // course, this requires permissions which might not be granted to calling code, so we
+                // must mark this block as privileged too
+                unsafe = AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                    @Override
+                    public Object run() {
+                        // force JCTools to initialize unsafe
+                        return UnsafeAccess.UNSAFE;
+                    }
+                });
+            }
+
+            if (unsafe == null) {
+                logger.debug("org.jctools-core.MpscChunkedArrayQueue: unavailable");
+                USE_MPSC_CHUNKED_ARRAY_QUEUE = false;
+            } else {
+                logger.debug("org.jctools-core.MpscChunkedArrayQueue: available");
+                USE_MPSC_CHUNKED_ARRAY_QUEUE = true;
+            }
+        }
+
+        private Mpsc() {
+        }
+
+        static <T> Queue<T> newMpscQueue(final int maxCapacity) {
+            // Calculate the max capacity which can not be bigger then MAX_ALLOWED_MPSC_CAPACITY.
+            // This is forced by the MpscChunkedArrayQueue implementation as will try to round it
+            // up to the next power of two and so will overflow otherwise.
+            final int capacity = max(min(maxCapacity, MAX_ALLOWED_MPSC_CAPACITY), MIN_MAX_MPSC_CAPACITY);
+            return USE_MPSC_CHUNKED_ARRAY_QUEUE ? new MpscChunkedArrayQueue<T>(MPSC_CHUNK_SIZE, capacity)
+                : new MpscGrowableAtomicArrayQueue<T>(MPSC_CHUNK_SIZE, capacity);
+        }
+
+        static <T> Queue<T> newMpscQueue() {
+            return USE_MPSC_CHUNKED_ARRAY_QUEUE ? new MpscUnboundedArrayQueue<T>(MPSC_CHUNK_SIZE)
+                : new MpscUnboundedAtomicArrayQueue<T>(MPSC_CHUNK_SIZE);
+        }
+    }
+
     private static final class AtomicLongCounter extends AtomicLong implements LongCounter {
         private static final long serialVersionUID = 4074772784610639305L;
 
@@ -1452,13 +1428,5 @@ public final class PlatformDependent {
         public long value() {
             return get();
         }
-    }
-
-    private interface ThreadLocalRandomProvider {
-        Random current();
-    }
-
-    private PlatformDependent() {
-        // only static method supported
     }
 }

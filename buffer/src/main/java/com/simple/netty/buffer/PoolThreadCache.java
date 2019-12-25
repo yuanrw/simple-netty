@@ -1,7 +1,6 @@
 package com.simple.netty.buffer;
 
 import com.simple.netty.common.internal.MathUtil;
-import com.simple.netty.common.internal.ObjectPool;
 import com.simple.netty.common.internal.PlatformDependent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -286,7 +285,7 @@ public class PoolThreadCache {
         @Override
         protected void initBuf(
             PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, PooledByteBuf<T> buf, int reqCapacity) {
-            chunk.initBufWithSubPage(buf, nioBuffer, handle, reqCapacity);
+            chunk.initBufWithSubPage(buf, handle, reqCapacity);
         }
     }
 
@@ -301,7 +300,7 @@ public class PoolThreadCache {
         @Override
         protected void initBuf(
             PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, PooledByteBuf<T> buf, int reqCapacity) {
-            chunk.initBuf(buf, nioBuffer, handle, reqCapacity);
+            chunk.initBuf(buf, handle, reqCapacity);
         }
     }
 
@@ -335,14 +334,14 @@ public class PoolThreadCache {
          */
         @SuppressWarnings("unchecked")
         public final boolean add(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle) {
-            Entry<T> entry = newEntry(chunk, nioBuffer, handle);
-            boolean queued = queue.offer(entry);
-            if (!queued) {
-                // If it was not possible to cache the chunk, immediately recycle the entry
-                entry.recycle();
-            }
+//            Entry<T> entry = newEntry(chunk, nioBuffer, handle);
+//            boolean queued = queue.offer(entry);
+//            if (!queued) {
+//                // If it was not possible to cache the chunk, immediately recycle the entry
+//                entry.recycle();
+//            }
 
-            return queued;
+            return true;
         }
 
         /**
@@ -392,7 +391,7 @@ public class PoolThreadCache {
                 entry.recycle();
             }
 
-            chunk.arena.freeChunk(chunk, handle, sizeClass, nioBuffer, finalizer);
+            chunk.arena.freeChunk(chunk, handle, sizeClass, finalizer);
         }
 
         static final class Entry<T> {
@@ -406,17 +405,5 @@ public class PoolThreadCache {
                 handle = -1;
             }
         }
-
-        @SuppressWarnings("rawtypes")
-        private static Entry newEntry(PoolChunk<?> chunk, ByteBuffer nioBuffer, long handle) {
-            Entry entry = RECYCLER.get();
-            entry.chunk = chunk;
-            entry.nioBuffer = nioBuffer;
-            entry.handle = handle;
-            return entry;
-        }
-
-        @SuppressWarnings("rawtypes")
-        private static final ObjectPool<Entry> RECYCLER = ObjectPool.newPool(Entry::new);
     }
 }

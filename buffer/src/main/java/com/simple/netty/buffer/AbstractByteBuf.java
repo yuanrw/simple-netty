@@ -84,6 +84,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf setIndex(int readerIndex, int writerIndex) {
+        checkIndexBounds(readerIndex, writerIndex, capacity());
+        setIndex0(readerIndex, writerIndex);
+        return this;
+    }
+
+    @Override
     public boolean isReadable() {
         return writerIndex > readerIndex;
     }
@@ -450,7 +457,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
                 writerIndex, minWritableBytes, maxCapacity, this));
         }
 
-        // Normalize the target capacity to the power of 2.
+        // capacity是2的次幂
         final int fastWritable = writableBytes();
         int newCapacity = fastWritable >= minWritableBytes ? writerIndex + fastWritable
             : alloc().calculateNewCapacity(targetCapacity, maxCapacity);
@@ -459,7 +466,28 @@ public abstract class AbstractByteBuf extends ByteBuf {
         capacity(newCapacity);
     }
 
+    protected final void checkSrcIndex(int index, int length, int srcIndex, int srcCapacity) {
+        checkIndex(index, length);
+        checkRangeBounds("srcIndex", srcIndex, length, srcCapacity);
+    }
+
+    protected final void checkDstIndex(int index, int length, int dstIndex, int dstCapacity) {
+        checkIndex(index, length);
+        checkRangeBounds("dstIndex", dstIndex, length, dstCapacity);
+    }
+
+    protected final void checkDstIndex(int length, int dstIndex, int dstCapacity) {
+        checkReadableBytes(length);
+        checkRangeBounds("dstIndex", dstIndex, length, dstCapacity);
+    }
+
     final void discardMarks() {
         markedReaderIndex = markedWriterIndex = 0;
+    }
+
+
+    final void setIndex0(int readerIndex, int writerIndex) {
+        this.readerIndex = readerIndex;
+        this.writerIndex = writerIndex;
     }
 }

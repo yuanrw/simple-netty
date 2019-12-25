@@ -1,9 +1,17 @@
 package com.simple.netty.buffer;
 
+import com.simple.netty.common.internal.ObjectUtil;
+import com.simple.netty.common.internal.PlatformDependent;
+import com.simple.netty.common.internal.ReferenceCounted;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+
+import static com.simple.netty.common.internal.ObjectUtil.checkPositiveOrZero;
+import static java.nio.ByteBuffer.allocateDirect;
 
 /**
  * Date: 2019-12-14
@@ -12,8 +20,81 @@ import java.nio.channels.GatheringByteChannel;
  * @author yrw
  */
 public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
-    protected UnpooledDirectByteBuf(int maxCapacity) {
+
+    private final ByteBufAllocator alloc;
+
+    /**
+     * 通过unsafe直接获取
+     */
+    ByteBuffer buffer;
+    private int capacity;
+    private boolean doNotFree;
+
+    public UnpooledDirectByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
         super(maxCapacity);
+        ObjectUtil.checkNotNull(alloc, "alloc");
+        checkPositiveOrZero(initialCapacity, "initialCapacity");
+        checkPositiveOrZero(maxCapacity, "maxCapacity");
+        if (initialCapacity > maxCapacity) {
+            throw new IllegalArgumentException(String.format(
+                "initialCapacity(%d) > maxCapacity(%d)", initialCapacity, maxCapacity));
+        }
+
+        this.alloc = alloc;
+        setByteBuffer(allocateDirect(initialCapacity), false);
+    }
+
+    /**
+     * Creates a new direct buffer by wrapping the specified initial buffer.
+     *
+     * @param maxCapacity the maximum capacity of the underlying direct buffer
+     */
+    protected UnpooledDirectByteBuf(ByteBufAllocator alloc, ByteBuffer initialBuffer, int maxCapacity) {
+        this(alloc, initialBuffer, maxCapacity, false, true);
+    }
+
+    UnpooledDirectByteBuf(ByteBufAllocator alloc, ByteBuffer initialBuffer,
+                          int maxCapacity, boolean doFree, boolean slice) {
+        super(maxCapacity);
+        ObjectUtil.checkNotNull(alloc, "alloc");
+        ObjectUtil.checkNotNull(initialBuffer, "initialBuffer");
+        if (!initialBuffer.isDirect()) {
+            throw new IllegalArgumentException("initialBuffer is not a direct buffer.");
+        }
+        if (initialBuffer.isReadOnly()) {
+            throw new IllegalArgumentException("initialBuffer is a read-only buffer.");
+        }
+
+        int initialCapacity = initialBuffer.remaining();
+        if (initialCapacity > maxCapacity) {
+            throw new IllegalArgumentException(String.format(
+                "initialCapacity(%d) > maxCapacity(%d)", initialCapacity, maxCapacity));
+        }
+
+        this.alloc = alloc;
+        doNotFree = !doFree;
+        setByteBuffer((slice ? initialBuffer.slice() : initialBuffer).order(ByteOrder.BIG_ENDIAN), false);
+        writerIndex(initialCapacity);
+    }
+
+    protected void freeDirect(ByteBuffer buffer) {
+        PlatformDependent.freeDirectBuffer(buffer);
+    }
+
+    void setByteBuffer(ByteBuffer buffer, boolean tryFree) {
+        if (tryFree) {
+            ByteBuffer oldBuffer = this.buffer;
+            if (oldBuffer != null) {
+                if (doNotFree) {
+                    doNotFree = false;
+                } else {
+                    freeDirect(oldBuffer);
+                }
+            }
+        }
+
+        this.buffer = buffer;
+        capacity = buffer.remaining();
     }
 
     @Override
@@ -102,6 +183,16 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
+    public boolean hasArray() {
+        return false;
+    }
+
+    @Override
+    public byte[] array() {
+        return new byte[0];
+    }
+
+    @Override
     public ByteBuf readBytes(ByteBuf dst, int length) {
         return null;
     }
@@ -114,6 +205,11 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     public int refCnt() {
         return 0;
+    }
+
+    @Override
+    public ReferenceCounted touch(Object hint) {
+        return null;
     }
 
     @Override

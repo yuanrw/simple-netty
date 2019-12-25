@@ -1,6 +1,6 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.internal.ObjectPool;
+import com.simple.netty.common.internal.ReferenceCounted;
 
 import java.nio.ByteBuffer;
 
@@ -11,17 +11,17 @@ import java.nio.ByteBuffer;
  * @author yrw
  */
 public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
-    private static final ObjectPool<PooledHeapByteBuf> RECYCLER = ObjectPool.newPool(
-        () -> new PooledHeapByteBuf(0));
+    //    private static final ObjectPool<PooledHeapByteBuf> RECYCLER = ObjectPool.newPool(
+    //        () -> new PooledHeapByteBuf(0));
 
     protected PooledHeapByteBuf(int maxCapacity) {
         super(maxCapacity);
     }
 
     static PooledHeapByteBuf newInstance(int maxCapacity) {
-        PooledHeapByteBuf buf = RECYCLER.get();
-        buf.reuse(maxCapacity);
-        return buf;
+        //        PooledHeapByteBuf buf = RECYCLER.get();
+        //        buf.reuse(maxCapacity);
+        return null;
     }
 
     @Override
@@ -110,6 +110,16 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     }
 
     @Override
+    public boolean hasArray() {
+        return false;
+    }
+
+    @Override
+    public byte[] array() {
+        return new byte[0];
+    }
+
+    @Override
     public ByteBuf readBytes(ByteBuf dst, int length) {
         return null;
     }
@@ -122,6 +132,11 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     @Override
     public int refCnt() {
         return 0;
+    }
+
+    @Override
+    public ReferenceCounted touch(Object hint) {
+        return null;
     }
 
     @Override

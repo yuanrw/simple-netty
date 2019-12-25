@@ -16,9 +16,6 @@
 package com.simple.netty.common.internal;
 
 /**
- * 初始化时，引用从1开始计算。{@link #retain()}增加计数，{@link #release()} 减少计数。
- * * 一旦计数等于0，对象会被释放。
- * <p>
  * A reference-counted object that requires explicit deallocation.
  * <p>
  * When a new {@link ReferenceCounted} is instantiated, it starts with the reference count of {@code 1}.
@@ -31,45 +28,50 @@ package com.simple.netty.common.internal;
  * {@link ReferenceCounted}, the contained objects will also be released via {@link #release()} when the container's
  * reference count becomes 0.
  * </p>
- * Date: 2019-12-14
- * Time: 12:40
- *
- * @author yrw
  */
 public interface ReferenceCounted {
-
     /**
-     * 返回对象的引用数。如果等于0，说明已被释放
+     * Returns the reference count of this object.  If {@code 0}, it means this object has been deallocated.
      */
     int refCnt();
 
     /**
-     * 引用加1
-     *
-     * @return
+     * Increases the reference count by {@code 1}.
      */
     ReferenceCounted retain();
 
     /**
-     * 引用加increment
-     *
-     * @param increment 数量
-     * @return
+     * Increases the reference count by the specified {@code increment}.
      */
     ReferenceCounted retain(int increment);
 
     /**
-     * 引用数减1
+     * Records the current access location of this object for debugging purposes.
+     * If this object is determined to be leaked, the information recorded by this operation will be provided to you
+     * via {@link ResourceLeakDetector}.  This method is a shortcut to {@link #touch(Object) touch(null)}.
+     */
+    ReferenceCounted touch();
+
+    /**
+     * Records the current access location of this object with an additional arbitrary information for debugging
+     * purposes.  If this object is determined to be leaked, the information recorded by this operation will be
+     * provided to you via {@link ResourceLeakDetector}.
+     */
+    ReferenceCounted touch(Object hint);
+
+    /**
+     * Decreases the reference count by {@code 1} and deallocates this object if the reference count reaches at
+     * {@code 0}.
      *
-     * @return 如果引用数等于0并且已经被释放返回会true
+     * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
      */
     boolean release();
 
     /**
-     * 引用数减decrement
+     * Decreases the reference count by the specified {@code decrement} and deallocates this object if the reference
+     * count reaches at {@code 0}.
      *
-     * @param decrement 数量
-     * @return 如果引用数等于0并且已经被释放返回会true
+     * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
      */
     boolean release(int decrement);
 }

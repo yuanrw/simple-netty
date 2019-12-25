@@ -14,9 +14,7 @@
  * under the License.
  */
 
-package com.simple.netty.common;
-
-import com.simple.netty.common.internal.ReferenceCounted;
+package com.simple.netty.common.internal;
 
 /**
  * An {@link IllegalStateException} which is raised when a user attempts to access a {@link ReferenceCounted} whose

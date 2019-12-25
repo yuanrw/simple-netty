@@ -34,6 +34,8 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract ByteBuf writerIndex(int writerIndex);
 
+    public abstract ByteBuf setIndex(int readerIndex, int writerIndex);
+
 
     public abstract int readableBytes();
 
@@ -93,6 +95,10 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract ByteBuf setBytes(int index, byte[] src, int srcIndex, int length);
 
     public abstract ByteBuf setBytes(int index, ByteBuffer src);
+
+    public abstract boolean hasArray();
+
+    public abstract byte[] array();
 
 
     public abstract boolean readBoolean();

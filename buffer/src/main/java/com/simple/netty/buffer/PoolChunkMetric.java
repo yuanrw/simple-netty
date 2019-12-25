@@ -9,17 +9,23 @@ package com.simple.netty.buffer;
 public interface PoolChunkMetric {
 
     /**
-     * Return the percentage of the current usage of the chunk.
+     * 返回这个chunk使用的百分比
+     *
+     * @return
      */
     int usage();
 
     /**
-     * Return the size of the chunk in bytes, this is the maximum of bytes that can be served out of the chunk.
+     * 返回这个chunk的最大byte数量
+     *
+     * @return
      */
     int chunkSize();
 
     /**
-     * Return the number of free bytes in the chunk.
+     * 返回这个chunk空闲的byte数量
+     *
+     * @return
      */
     int freeBytes();
 }
