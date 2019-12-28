@@ -316,7 +316,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             deallocationsHuge.increment();
         } else {
             SizeClass sizeClass = sizeClass(normCapacity);
-            if (cache != null && cache.add(this, chunk, nioBuffer, handle, normCapacity, sizeClass)) {
+            if (cache != null && cache.add(this, chunk, handle, normCapacity, sizeClass)) {
                 // cached so not free it.
                 return;
             }
@@ -562,7 +562,6 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
     protected abstract PoolChunk<T> newChunk(int pageSize, int maxOrder, int chunkSize);
     protected abstract PoolChunk<T> newUnpooledChunk(int capacity);
     protected abstract PooledByteBuf<T> newByteBuf(int maxCapacity);
-    protected abstract void memoryCopy(T src, int srcOffset, PooledByteBuf<T> dst, int length);
     protected abstract void destroyChunk(PoolChunk<T> chunk);
 
     @Override
@@ -648,14 +647,6 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             return PooledHeapByteBuf.newInstance(maxCapacity);
         }
 
-        @Override
-        protected void memoryCopy(byte[] src, int srcOffset, PooledByteBuf<byte[]> dst, int length) {
-            if (length == 0) {
-                return;
-            }
-
-            System.arraycopy(src, srcOffset, dst.memory, 0, length);
-        }
     }
 
     /**
@@ -724,26 +715,6 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         @Override
         protected PooledByteBuf<ByteBuffer> newByteBuf(int maxCapacity) {
             return PooledDirectByteBuf.newInstance(maxCapacity);
-        }
-
-        @Override
-        protected void memoryCopy(ByteBuffer src, int srcOffset, PooledByteBuf<ByteBuffer> dstBuf, int length) {
-            if (length == 0) {
-                return;
-            }
-
-            if (HAS_UNSAFE) {
-                PlatformDependent.copyMemory(
-                    PlatformDependent.directBufferAddress(src) + srcOffset,
-                    PlatformDependent.directBufferAddress(dstBuf.memory), length);
-            } else {
-                // We must duplicate the NIO buffers because they may be accessed by other Netty buffers.
-                src = src.duplicate();
-                ByteBuffer dst = dstBuf.internalNioBuffer();
-                src.position(srcOffset).limit(srcOffset + length);
-                dst.position(0);
-                dst.put(src);
-            }
         }
     }
 }

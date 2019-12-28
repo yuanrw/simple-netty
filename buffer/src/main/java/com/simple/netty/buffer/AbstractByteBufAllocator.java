@@ -108,42 +108,6 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         return newDirectBuffer(initialCapacity, maxCapacity);
     }
 
-    @Override
-    public CompositeByteBuf compositeBuffer() {
-        if (directByDefault) {
-            return compositeDirectBuffer();
-        }
-        return compositeHeapBuffer();
-    }
-
-    @Override
-    public CompositeByteBuf compositeBuffer(int maxNumComponents) {
-        if (directByDefault) {
-            return compositeDirectBuffer(maxNumComponents);
-        }
-        return compositeHeapBuffer(maxNumComponents);
-    }
-
-    @Override
-    public CompositeByteBuf compositeHeapBuffer() {
-        return compositeHeapBuffer(DEFAULT_MAX_COMPONENTS);
-    }
-
-    @Override
-    public CompositeByteBuf compositeHeapBuffer(int maxNumComponents) {
-        return new CompositeByteBuf(maxNumComponents);
-    }
-
-    @Override
-    public CompositeByteBuf compositeDirectBuffer() {
-        return compositeDirectBuffer(DEFAULT_MAX_COMPONENTS);
-    }
-
-    @Override
-    public CompositeByteBuf compositeDirectBuffer(int maxNumComponents) {
-        return new CompositeByteBuf(maxNumComponents);
-    }
-
     private static void validate(int initialCapacity, int maxCapacity) {
         checkPositiveOrZero(initialCapacity, "initialCapacity");
         if (initialCapacity > maxCapacity) {

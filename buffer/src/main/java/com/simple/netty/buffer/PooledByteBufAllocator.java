@@ -2,8 +2,6 @@ package com.simple.netty.buffer;
 
 import com.simple.netty.common.internal.NettyRuntime;
 import com.simple.netty.common.internal.PlatformDependent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 
@@ -15,7 +13,6 @@ import java.nio.ByteBuffer;
  * @author yrw
  */
 public class PooledByteBufAllocator extends AbstractByteBufAllocator {
-    private static final Logger logger = LoggerFactory.getLogger(PooledByteBufAllocator.class);
 
     private static final int DEFAULT_NUM_HEAP_ARENA;
     private static final int DEFAULT_NUM_DIRECT_ARENA;
@@ -28,13 +25,6 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
     private static final int DEFAULT_SMALL_CACHE_SIZE = 256;
     private static final int DEFAULT_NORMAL_CACHE_SIZE = 64;
     private static final int DEFAULT_MAX_CACHED_BUFFER_CAPACITY = 32 * 1024;
-    private static final int DEFAULT_CACHE_TRIM_INTERVAL = 8192;
-    private static final long DEFAULT_CACHE_TRIM_INTERVAL_MILLIS = 0;
-    private static final boolean DEFAULT_USE_CACHE_FOR_ALL_THREADS = true;
-    private static final int DEFAULT_DIRECT_MEMORY_CACHE_ALIGNMENT = 0;
-    static final int DEFAULT_MAX_CACHED_BYTEBUFFERS_PER_CHUNK = 1023;
-
-    private static final int MIN_PAGE_SIZE = 4096;
     private static final int MAX_CHUNK_SIZE = (int) (((long) Integer.MAX_VALUE + 1) / 2);
 
     private PoolThreadLocalCache threadCache;
@@ -54,8 +44,60 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
             PlatformDependent.maxDirectMemory() / defaultChunkSize / 2 / 3));
     }
 
-    protected PooledByteBufAllocator(boolean preferDirect) {
+    private final PoolArena<byte[]>[] heapArenas;
+    private final PoolArena<ByteBuffer>[] directArenas;
+    private final int chunkSize;
+    private final int tinyCacheSize;
+    private final int smallCacheSize;
+    private final int normalCacheSize;
+
+    public PooledByteBufAllocator(boolean preferDirect) {
+        this(preferDirect, DEFAULT_NUM_HEAP_ARENA, DEFAULT_NUM_DIRECT_ARENA, DEFAULT_PAGE_SIZE, DEFAULT_MAX_ORDER,
+            DEFAULT_TINY_CACHE_SIZE, DEFAULT_SMALL_CACHE_SIZE, DEFAULT_NORMAL_CACHE_SIZE);
+    }
+
+    public PooledByteBufAllocator(boolean preferDirect, int nHeapArena, int nDirectArena, int pageSize, int maxOrder,
+                                  int tinyCacheSize, int smallCacheSize, int normalCacheSize) {
         super(preferDirect);
+        this.threadCache = new PoolThreadLocalCache();
+        this.tinyCacheSize = tinyCacheSize;
+        this.smallCacheSize = smallCacheSize;
+        this.normalCacheSize = normalCacheSize;
+        this.chunkSize = validateAndCalculateChunkSize(pageSize, maxOrder);
+
+        if (nHeapArena > 0) {
+            heapArenas = newArenaArray(nHeapArena);
+        } else {
+            heapArenas = null;
+        }
+
+        if (nDirectArena > 0) {
+            directArenas = newArenaArray(nDirectArena);
+        } else {
+            directArenas = null;
+        }
+    }
+
+    private static int validateAndCalculateChunkSize(int pageSize, int maxOrder) {
+        if (maxOrder > 14) {
+            throw new IllegalArgumentException("maxOrder: " + maxOrder + " (expected: 0-14)");
+        }
+
+        // Ensure the resulting chunkSize does not overflow.
+        int chunkSize = pageSize;
+        for (int i = maxOrder; i > 0; i--) {
+            if (chunkSize > MAX_CHUNK_SIZE / 2) {
+                throw new IllegalArgumentException(String.format(
+                    "pageSize (%d) << maxOrder (%d) must not exceed %d", pageSize, maxOrder, MAX_CHUNK_SIZE));
+            }
+            chunkSize <<= 1;
+        }
+        return chunkSize;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> PoolArena<T>[] newArenaArray(int size) {
+        return new PoolArena[size];
     }
 
     @Override
@@ -99,6 +141,42 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
         return false;
     }
 
+    public final int chunkSize() {
+        return chunkSize;
+    }
+
+    @Override
+    public long usedHeapMemory() {
+        return usedMemory(heapArenas);
+    }
+
+    @Override
+    public long usedDirectMemory() {
+        return usedMemory(directArenas);
+    }
+
+    private static long usedMemory(PoolArena<?>[] arenas) {
+        if (arenas == null) {
+            return -1;
+        }
+        long used = 0;
+        for (PoolArena<?> arena : arenas) {
+            used += arena.numActiveBytes();
+            if (used < 0) {
+                return Long.MAX_VALUE;
+            }
+        }
+        return used;
+    }
+
+    public PoolArena<byte[]>[] getHeapArenas() {
+        return heapArenas;
+    }
+
+    public PoolArena<ByteBuffer>[] getDirectArenas() {
+        return directArenas;
+    }
+
     /**
      * 把线程和PoolThreadCache绑定在一起，全局唯一
      * 任何线程分配内存，都会调用同一个PoolThreadLocalCache.get()获取PoolThreadCache
@@ -106,7 +184,27 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
     final class PoolThreadLocalCache extends ThreadLocal<PoolThreadCache> {
         @Override
         protected synchronized PoolThreadCache initialValue() {
-            return null;
+            final PoolArena<byte[]> heapArena = leastUsedArena(heapArenas);
+            final PoolArena<ByteBuffer> directArena = leastUsedArena(directArenas);
+            return new PoolThreadCache(
+                heapArena, directArena, tinyCacheSize, smallCacheSize, normalCacheSize,
+                DEFAULT_MAX_CACHED_BUFFER_CAPACITY);
+        }
+
+        private <T> PoolArena<T> leastUsedArena(PoolArena<T>[] arenas) {
+            if (arenas == null || arenas.length == 0) {
+                return null;
+            }
+
+            PoolArena<T> minArena = arenas[0];
+            for (int i = 1; i < arenas.length; i++) {
+                PoolArena<T> arena = arenas[i];
+                if (arena.numThreadCaches.get() < minArena.numThreadCaches.get()) {
+                    minArena = arena;
+                }
+            }
+
+            return minArena;
         }
     }
 }

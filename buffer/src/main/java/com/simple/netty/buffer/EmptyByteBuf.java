@@ -214,6 +214,11 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
+        return null;
+    }
+
+    @Override
     public boolean hasArray() {
         return false;
     }
@@ -271,6 +276,11 @@ public class EmptyByteBuf extends ByteBuf {
     @Override
     public ByteBuf readBytes(ByteBuf dst, int length) {
         throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf readBytes(ByteBuf dst, int dstIndex, int length) {
+        return null;
     }
 
     @Override

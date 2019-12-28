@@ -8,8 +8,6 @@ import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 
-import static java.nio.ByteBuffer.allocateDirect;
-
 /**
  * Date: 2019-12-14
  * Time: 12:40
@@ -252,5 +250,9 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
         ByteBuffer tmpBuf = buffer.duplicate();
         tmpBuf.clear().position(index).limit(index + length);
         return out.write(tmpBuf, position);
+    }
+
+    protected ByteBuffer allocateDirect(int initialCapacity) {
+        return ByteBuffer.allocateDirect(initialCapacity);
     }
 }
