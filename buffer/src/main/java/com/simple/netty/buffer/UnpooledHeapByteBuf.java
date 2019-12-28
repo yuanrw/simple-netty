@@ -1,14 +1,9 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.internal.IllegalReferenceCountException;
-import com.simple.netty.common.internal.ReferenceCounted;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
-
-import static com.simple.netty.common.internal.ObjectUtil.checkNotNull;
 
 /**
  * Date: 2019-12-14
@@ -24,31 +19,19 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
     public UnpooledHeapByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
         super(maxCapacity);
 
-        if (initialCapacity > maxCapacity) {
-            throw new IllegalArgumentException(String.format(
-                "initialCapacity(%d) > maxCapacity(%d)", initialCapacity, maxCapacity));
-        }
-
-        this.alloc = checkNotNull(alloc, "alloc");
+        this.alloc = alloc;
         setArray(allocateArray(initialCapacity));
         setIndex(0, 0);
     }
 
     /**
-     * Creates a new heap buffer with an existing byte array.
+     * 已有byte array，创建heap bytebuf
      *
-     * @param initialArray the initial underlying byte array
-     * @param maxCapacity  the max capacity of the underlying byte array
+     * @param initialArray 初始byte array
+     * @param maxCapacity  byte array的最大容量
      */
     protected UnpooledHeapByteBuf(ByteBufAllocator alloc, byte[] initialArray, int maxCapacity) {
         super(maxCapacity);
-
-        checkNotNull(alloc, "alloc");
-        checkNotNull(initialArray, "initialArray");
-        if (initialArray.length > maxCapacity) {
-            throw new IllegalArgumentException(String.format(
-                "initialCapacity(%d) > maxCapacity(%d)", initialArray.length, maxCapacity));
-        }
 
         this.alloc = alloc;
         setArray(initialArray);
@@ -154,20 +137,6 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
         return this;
     }
 
-    protected final void checkNewCapacity(int newCapacity) {
-        ensureAccessible();
-        if ((newCapacity < 0 || newCapacity > maxCapacity())) {
-            throw new IllegalArgumentException("newCapacity: " + newCapacity +
-                " (expected: 0-" + maxCapacity() + ')');
-        }
-    }
-
-    protected final void trimIndicesToCapacity(int newCapacity) {
-        if (writerIndex() > newCapacity) {
-            setIndex0(Math.min(readerIndex(), newCapacity), newCapacity);
-        }
-    }
-
     @Override
     public ByteBufAllocator alloc() {
         return alloc;
@@ -176,11 +145,6 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     public boolean isDirect() {
         return false;
-    }
-
-    @Override
-    public ByteBuf clear() {
-        return null;
     }
 
     @Override
@@ -196,52 +160,55 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
 
     @Override
     public ByteBuf getBytes(int index, ByteBuffer dst) {
-        return null;
+        ensureAccessible();
+        dst.put(array, index, dst.remaining());
+        return this;
     }
 
     @Override
     public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
-        return null;
+        checkDstIndex(index, length, dstIndex, dst.length);
+        System.arraycopy(array, index, dst, dstIndex, length);
+        return this;
     }
 
     @Override
     public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
-        return null;
+        checkSrcIndex(index, length, srcIndex, src.length);
+        System.arraycopy(src, srcIndex, array, index, length);
+        return this;
+    }
+
+    @Override
+    public ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
+        checkSrcIndex(index, length, srcIndex, src.capacity());
+        if (src.hasArray()) {
+            setBytes(index, src.array(), srcIndex, length);
+        } else {
+            src.getBytes(srcIndex, array, index, length);
+        }
+        return this;
     }
 
     @Override
     public ByteBuf setBytes(int index, ByteBuffer src) {
-        return null;
-    }
-
-    @Override
-    public ByteBuf readBytes(ByteBuf dst, int length) {
-        return null;
-    }
-
-    @Override
-    public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
-        return null;
-    }
-
-    @Override
-    public int refCnt() {
-        return 0;
-    }
-
-    @Override
-    public ReferenceCounted touch(Object hint) {
-        return null;
+        ensureAccessible();
+        src.get(array, index, src.remaining());
+        return this;
     }
 
     @Override
     public int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
-        return 0;
+        ensureAccessible();
+        ByteBuffer tmpBuf = ByteBuffer.wrap(array);
+        return out.write((ByteBuffer) tmpBuf.clear().position(index).limit(index + length));
     }
 
     @Override
     public int getBytes(int index, FileChannel out, long position, int length) throws IOException {
-        return 0;
+        ensureAccessible();
+        ByteBuffer tmpBuf = ByteBuffer.wrap(array);
+        return out.write((ByteBuffer) tmpBuf.clear().position(index).limit(index + length), position);
     }
 
     @Override
@@ -252,11 +219,5 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     public byte[] array() {
         return array;
-    }
-
-    protected final void ensureAccessible() {
-        if (!isAccessible()) {
-            throw new IllegalReferenceCountException(0);
-        }
     }
 }

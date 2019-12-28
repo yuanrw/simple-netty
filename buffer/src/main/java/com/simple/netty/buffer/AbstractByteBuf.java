@@ -1,5 +1,7 @@
 package com.simple.netty.buffer;
 
+import com.simple.netty.common.internal.IllegalReferenceCountException;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -309,6 +311,33 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf readBytes(ByteBuf dst, int length) {
+        if (length > dst.writableBytes()) {
+            throw new IndexOutOfBoundsException(String.format(
+                "length(%d) exceeds dst.writableBytes(%d) where dst is: %s", length, dst.writableBytes(), dst));
+        }
+        readBytes(dst, dst.writerIndex(), length);
+        dst.writerIndex(dst.writerIndex() + length);
+        return this;
+    }
+
+    @Override
+    public ByteBuf readBytes(ByteBuf dst, int dstIndex, int length) {
+        checkReadableBytes(length);
+        getBytes(readerIndex, dst, dstIndex, length);
+        readerIndex += length;
+        return this;
+    }
+
+    @Override
+    public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
+        ensureWritable(length);
+        setBytes(writerIndex, src, srcIndex, length);
+        writerIndex += length;
+        return this;
+    }
+
+    @Override
     public ByteBuf writeBoolean(boolean value) {
         writeByte(value ? 1 : 0);
         return this;
@@ -383,6 +412,12 @@ public abstract class AbstractByteBuf extends ByteBuf {
         ensureWritable0(length);
         setBytes(writerIndex, src);
         writerIndex += length;
+        return this;
+    }
+
+    @Override
+    public ByteBuf clear() {
+        readerIndex = writerIndex = 0;
         return this;
     }
 
@@ -464,6 +499,30 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
         // 扩容
         capacity(newCapacity);
+    }
+
+    protected final void checkNewCapacity(int newCapacity) {
+        ensureAccessible();
+        if (newCapacity < 0 || newCapacity > maxCapacity()) {
+            throw new IllegalArgumentException("newCapacity: " + newCapacity +
+                " (expected: 0-" + maxCapacity() + ')');
+        }
+    }
+
+    /**
+     * 判断buffer是否已经被释放
+     * 每次获取buffer内容之前都要调用
+     */
+    protected final void ensureAccessible() {
+        if (!isAccessible()) {
+            throw new IllegalReferenceCountException(0);
+        }
+    }
+
+    protected final void trimIndicesToCapacity(int newCapacity) {
+        if (writerIndex() > newCapacity) {
+            setIndex0(Math.min(readerIndex(), newCapacity), newCapacity);
+        }
     }
 
     protected final void checkSrcIndex(int index, int length, int srcIndex, int srcCapacity) {

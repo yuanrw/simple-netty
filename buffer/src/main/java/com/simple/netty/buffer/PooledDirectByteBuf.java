@@ -1,10 +1,11 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.internal.ReferenceCounted;
+import com.simple.netty.common.internal.ObjectPool;
 
 import java.nio.ByteBuffer;
 
 /**
+ * 池化的对外ByteBuf
  * Date: 2019-12-14
  * Time: 12:38
  *
@@ -12,14 +13,13 @@ import java.nio.ByteBuffer;
  */
 public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
-    //    private static final ObjectPool<PooledDirectByteBuf> RECYCLER = ObjectPool.newPool(
-    //        () -> new PooledDirectByteBuf(0));
+    private static final ObjectPool<PooledDirectByteBuf> RECYCLER = new ObjectPool<>(
+        () -> new PooledDirectByteBuf(0), instance -> {});
 
     static PooledDirectByteBuf newInstance(int maxCapacity) {
-        //        PooledDirectByteBuf buf = RECYCLER.get();
-        //        buf.reuse(maxCapacity);
-        //        return buf;
-        return null;
+        PooledDirectByteBuf buf = RECYCLER.get();
+        buf.reuse(maxCapacity);
+        return buf;
     }
 
     protected PooledDirectByteBuf(int maxCapacity) {
@@ -28,97 +28,99 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
     @Override
     protected byte _getByte(int index) {
-        return 0;
+        return memory.get(idx(index));
     }
 
     @Override
     protected short _getShort(int index) {
-        return 0;
+        return memory.getShort(idx(index));
     }
 
     @Override
     protected int _getInt(int index) {
-        return 0;
+        return memory.getInt(idx(index));
     }
 
     @Override
     protected long _getLong(int index) {
-        return 0;
+        return memory.getLong(idx(index));
     }
 
     @Override
     protected void _setByte(int index, int value) {
-
+        memory.put(idx(index), (byte) value);
     }
 
     @Override
     protected void _setInt(int index, int value) {
-
+        memory.putInt(idx(index), value);
     }
 
     @Override
     protected void _setShort(int index, int value) {
-
-    }
-
-    @Override
-    public int capacity() {
-        return 0;
-    }
-
-    @Override
-    public ByteBuf capacity(int newCapacity) {
-        return null;
-    }
-
-    @Override
-    public ByteBufAllocator alloc() {
-        return null;
+        memory.putShort(idx(index), (short) value);
     }
 
     @Override
     public boolean isDirect() {
-        return false;
-    }
-
-    @Override
-    public ByteBuf clear() {
-        return null;
+        return true;
     }
 
     @Override
     public ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
-        return null;
+        checkDstIndex(index, length, dstIndex, dst.capacity());
+        if (dst.hasArray()) {
+            getBytes(index, dst.array(), dstIndex, length);
+        } else {
+            dst.setBytes(dstIndex, this, index, length);
+        }
+        return this;
     }
 
     @Override
     public ByteBuf getBytes(int index, ByteBuffer dst) {
-        return null;
+        dst.put(_internalNioBuffer(index, dst.remaining()));
+        return this;
     }
 
     @Override
     public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
-        return null;
+        checkDstIndex(index, length, dstIndex, dst.length);
+        _internalNioBuffer(index, length).get(dst, dstIndex, length);
+        return this;
     }
 
     @Override
     public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
-        return null;
+        checkSrcIndex(index, length, srcIndex, src.length);
+        _internalNioBuffer(index, length).put(src, srcIndex, length);
+        return this;
     }
 
     @Override
     public ByteBuf setBytes(int index, ByteBuffer src) {
-        return null;
+        int length = src.remaining();
+        checkIndex(index, length);
+        ByteBuffer tmpBuf = internalNioBuffer(memory);
+        if (src == tmpBuf) {
+            src = src.duplicate();
+        }
+
+        index = idx(index);
+        tmpBuf.clear().position(index).limit(index + length);
+        tmpBuf.put(src);
+        return this;
     }
 
     @Override
-    public ByteBuf readBytes(ByteBuf dst, int length) {
-        return null;
-    }
-
-    @Override
-    public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
-        return null;
+    public ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
+        checkSrcIndex(index, length, srcIndex, src.capacity());
+        if (src.hasArray()) {
+            setBytes(index, src.array(), srcIndex, length);
+        } else {
+            src.getBytes(srcIndex, this, index, length);
+        }
+        return this;
     }
 
     @Override
@@ -132,17 +134,7 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
     }
 
     @Override
-    public int refCnt() {
-        return 0;
-    }
-
-    @Override
-    public ReferenceCounted touch(Object hint) {
-        return null;
-    }
-
-    @Override
-    protected ByteBuffer newInternalNioBuffer(ByteBuffer memory) {
-        return null;
+    protected ByteBuffer internalNioBuffer(ByteBuffer memory) {
+        return memory.duplicate();
     }
 }

@@ -96,6 +96,8 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract ByteBuf setBytes(int index, ByteBuffer src);
 
+    public abstract ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length);
+
     public abstract boolean hasArray();
 
     public abstract byte[] array();
@@ -120,6 +122,8 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract ByteBuf readBytes(ByteBuf dst);
 
     public abstract ByteBuf readBytes(ByteBuf dst, int length);
+
+    public abstract ByteBuf readBytes(ByteBuf dst, int dstIndex, int length);
 
     public abstract ByteBuf readBytes(byte[] dst);
 

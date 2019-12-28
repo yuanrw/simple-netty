@@ -2,7 +2,6 @@ package com.simple.netty.buffer;
 
 import com.simple.netty.common.internal.NettyRuntime;
 import com.simple.netty.common.internal.PlatformDependent;
-import com.simple.netty.common.internal.SystemPropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,64 +40,18 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
     private PoolThreadLocalCache threadCache;
 
     static {
-        int defaultPageSize = SystemPropertyUtil.getInt("io.netty.allocator.pageSize", 8192);
-        Throwable pageSizeFallbackCause = null;
-        try {
-            validateAndCalculatePageShifts(defaultPageSize);
-        } catch (Throwable t) {
-            pageSizeFallbackCause = t;
-            defaultPageSize = 8192;
-        }
-        DEFAULT_PAGE_SIZE = defaultPageSize;
-
-        int defaultMaxOrder = SystemPropertyUtil.getInt("io.netty.allocator.maxOrder", 11);
-        Throwable maxOrderFallbackCause = null;
-        try {
-            validateAndCalculateChunkSize(DEFAULT_PAGE_SIZE, defaultMaxOrder);
-        } catch (Throwable t) {
-            maxOrderFallbackCause = t;
-            defaultMaxOrder = 11;
-        }
-        DEFAULT_MAX_ORDER = defaultMaxOrder;
+        DEFAULT_PAGE_SIZE = 8192;
+        DEFAULT_MAX_ORDER = 11;
 
         final int defaultMinNumArena = NettyRuntime.availableProcessors() * 2;
         final int defaultChunkSize = DEFAULT_PAGE_SIZE << DEFAULT_MAX_ORDER;
+
         final Runtime runtime = Runtime.getRuntime();
 
         DEFAULT_NUM_HEAP_ARENA = Math.max(0, (int) Math.min(defaultMinNumArena,
             runtime.maxMemory() / defaultChunkSize / 2 / 3));
         DEFAULT_NUM_DIRECT_ARENA = Math.max(0, (int) Math.min(defaultMinNumArena,
             PlatformDependent.maxDirectMemory() / defaultChunkSize / 2 / 3));
-    }
-
-    private static int validateAndCalculatePageShifts(int pageSize) {
-        if (pageSize < MIN_PAGE_SIZE) {
-            throw new IllegalArgumentException("pageSize: " + pageSize + " (expected: " + MIN_PAGE_SIZE + ")");
-        }
-
-        if ((pageSize & pageSize - 1) != 0) {
-            throw new IllegalArgumentException("pageSize: " + pageSize + " (expected: power of 2)");
-        }
-
-        // Logarithm base 2. At this point we know that pageSize is a power of two.
-        return Integer.SIZE - 1 - Integer.numberOfLeadingZeros(pageSize);
-    }
-
-    private static int validateAndCalculateChunkSize(int pageSize, int maxOrder) {
-        if (maxOrder > 14) {
-            throw new IllegalArgumentException("maxOrder: " + maxOrder + " (expected: 0-14)");
-        }
-
-        // Ensure the resulting chunkSize does not overflow.
-        int chunkSize = pageSize;
-        for (int i = maxOrder; i > 0; i--) {
-            if (chunkSize > MAX_CHUNK_SIZE / 2) {
-                throw new IllegalArgumentException(String.format(
-                    "pageSize (%d) << maxOrder (%d) must not exceed %d", pageSize, maxOrder, MAX_CHUNK_SIZE));
-            }
-            chunkSize <<= 1;
-        }
-        return chunkSize;
     }
 
     protected PooledByteBufAllocator(boolean preferDirect) {

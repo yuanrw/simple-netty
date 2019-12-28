@@ -1,6 +1,7 @@
 package com.simple.netty.buffer;
 
 import com.simple.netty.common.internal.MathUtil;
+import com.simple.netty.common.internal.ObjectPool;
 import com.simple.netty.common.internal.PlatformDependent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,8 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static com.simple.netty.common.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
  * NioEventLoop在为数据分配存放的内存时，首先尝试从线程本地缓存申请，失败才从全局内存中申请，
@@ -36,7 +35,6 @@ public class PoolThreadCache {
     private final MemoryRegionCache<byte[]>[] normalHeapCaches;
     private final MemoryRegionCache<ByteBuffer>[] normalDirectCaches;
 
-    // Used for bitshifting when calculate the index of normal caches later
     private final int numShiftsNormalDirect;
     private final int numShiftsNormalHeap;
     private final AtomicBoolean freed = new AtomicBoolean();
@@ -44,7 +42,6 @@ public class PoolThreadCache {
     PoolThreadCache(PoolArena<byte[]> heapArena, PoolArena<ByteBuffer> directArena,
                     int tinyCacheSize, int smallCacheSize, int normalCacheSize,
                     int maxCachedBufferCapacity) {
-        checkPositiveOrZero(maxCachedBufferCapacity, "maxCachedBufferCapacity");
         this.heapArena = heapArena;
         this.directArena = directArena;
         if (directArena != null) {
@@ -59,14 +56,13 @@ public class PoolThreadCache {
 
             directArena.numThreadCaches.getAndIncrement();
         } else {
-            // No directArea is configured so just null out all caches
+            // 没有directArea
             tinySubPageDirectCaches = null;
             smallSubPageDirectCaches = null;
             normalDirectCaches = null;
             numShiftsNormalDirect = -1;
         }
         if (heapArena != null) {
-            // Create the caches for the heap allocations
             tinySubPageHeapCaches = createSubPageCaches(
                 tinyCacheSize, PoolArena.numTinySubPagePools, PoolArena.SizeClass.Tiny);
             smallSubPageHeapCaches = createSubPageCaches(
@@ -92,7 +88,6 @@ public class PoolThreadCache {
             @SuppressWarnings("unchecked")
             MemoryRegionCache<T>[] cache = new MemoryRegionCache[numCaches];
             for (int i = 0; i < cache.length; i++) {
-                // TODO: maybe use cacheSize / cache.length
                 cache[i] = new SubPageMemoryRegionCache<T>(cacheSize, sizeClass);
             }
             return cache;
@@ -162,13 +157,13 @@ public class PoolThreadCache {
      * Returns {@code true} if it fit into the cache {@code false} otherwise.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    boolean add(PoolArena<?> area, PoolChunk chunk, ByteBuffer nioBuffer,
+    boolean add(PoolArena<?> area, PoolChunk chunk,
                 long handle, int normCapacity, PoolArena.SizeClass sizeClass) {
         MemoryRegionCache<?> cache = cache(area, normCapacity, sizeClass);
         if (cache == null) {
             return false;
         }
-        return cache.add(chunk, nioBuffer, handle);
+        return cache.add(chunk, handle);
     }
 
     private MemoryRegionCache<?> cache(PoolArena<?> area, int normCapacity, PoolArena.SizeClass sizeClass) {
@@ -184,7 +179,6 @@ public class PoolThreadCache {
         }
     }
 
-    /// TODO: In the future when we move to Java9+ we should use java.lang.ref.Cleaner.
     @Override
     protected void finalize() throws Throwable {
         try {
@@ -284,7 +278,7 @@ public class PoolThreadCache {
 
         @Override
         protected void initBuf(
-            PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, PooledByteBuf<T> buf, int reqCapacity) {
+            PoolChunk<T> chunk, long handle, PooledByteBuf<T> buf, int reqCapacity) {
             chunk.initBufWithSubPage(buf, handle, reqCapacity);
         }
     }
@@ -299,7 +293,7 @@ public class PoolThreadCache {
 
         @Override
         protected void initBuf(
-            PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, PooledByteBuf<T> buf, int reqCapacity) {
+            PoolChunk<T> chunk, long handle, PooledByteBuf<T> buf, int reqCapacity) {
             chunk.initBuf(buf, handle, reqCapacity);
         }
     }
@@ -324,42 +318,37 @@ public class PoolThreadCache {
         }
 
         /**
-         * Init the {@link PooledByteBuf} using the provided chunk and handle with the capacity restrictions.
+         * 初始化{@link PooledByteBuf}
          */
-        protected abstract void initBuf(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle,
-                                        PooledByteBuf<T> buf, int reqCapacity);
+        protected abstract void initBuf(PoolChunk<T> chunk, long handle, PooledByteBuf<T> buf, int reqCapacity);
 
-        /**
-         * Add to cache if not already full.
-         */
         @SuppressWarnings("unchecked")
-        public final boolean add(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle) {
-//            Entry<T> entry = newEntry(chunk, nioBuffer, handle);
-//            boolean queued = queue.offer(entry);
-//            if (!queued) {
-//                // If it was not possible to cache the chunk, immediately recycle the entry
-//                entry.recycle();
-//            }
-
+        public final boolean add(PoolChunk<T> chunk, long handle) {
+            Entry<T> entry = newEntry(chunk, handle);
+            boolean queued = queue.offer(entry);
+            if (!queued) {
+                //如果放不进去了，就回收掉
+                entry.recycle();
+            }
             return true;
         }
 
         /**
-         * Allocate something out of the cache if possible and remove the entry from the cache.
+         * 取出一个ByteBuf
          */
         public final boolean allocate(PooledByteBuf<T> buf, int reqCapacity) {
             Entry<T> entry = queue.poll();
             if (entry == null) {
                 return false;
             }
-            initBuf(entry.chunk, entry.nioBuffer, entry.handle, buf, reqCapacity);
+            initBuf(entry.chunk, entry.handle, buf, reqCapacity);
             entry.recycle();
 
             return true;
         }
 
         /**
-         * Clear out this cache and free up all previous cached {@link PoolChunk}s and {@code handle}s.
+         * 清空缓存
          */
         public final int free(boolean finalizer) {
             return free(Integer.MAX_VALUE, finalizer);
@@ -383,11 +372,9 @@ public class PoolThreadCache {
         private void freeEntry(Entry entry, boolean finalizer) {
             PoolChunk chunk = entry.chunk;
             long handle = entry.handle;
-            ByteBuffer nioBuffer = entry.nioBuffer;
 
             if (!finalizer) {
-                // recycle now so PoolChunk can be GC'ed. This will only be done if this is not freed because of
-                // a finalizer.
+                //此方法不是在finalizer中被调用的时候才执行，否则就代表马上要被gc了
                 entry.recycle();
             }
 
@@ -396,14 +383,23 @@ public class PoolThreadCache {
 
         static final class Entry<T> {
             PoolChunk<T> chunk;
-            ByteBuffer nioBuffer;
             long handle = -1;
 
             void recycle() {
                 chunk = null;
-                nioBuffer = null;
                 handle = -1;
             }
         }
+
+        @SuppressWarnings("rawtypes")
+        private static Entry newEntry(PoolChunk<?> chunk, long handle) {
+            Entry entry = RECYCLER.get();
+            entry.chunk = chunk;
+            entry.handle = handle;
+            return entry;
+        }
+
+        @SuppressWarnings("rawtypes")
+        private static final ObjectPool<Entry> RECYCLER = new ObjectPool<>(Entry::new, e -> {});
     }
 }

@@ -1,7 +1,5 @@
 package com.simple.netty.buffer;
 
-import com.simple.netty.common.internal.IllegalReferenceCountException;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -104,7 +102,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     public final int readBytes(GatheringByteChannel out, int length) throws IOException {
         checkReadableBytes(length);
-        int readBytes = out.write(_internalNioBuffer(readerIndex, length, false));
+        int readBytes = out.write(_internalNioBuffer(readerIndex, length));
         readerIndex += readBytes;
         return readBytes;
     }
@@ -112,7 +110,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     public final int readBytes(FileChannel out, long position, int length) throws IOException {
         checkReadableBytes(length);
-        int readBytes = out.write(_internalNioBuffer(readerIndex, length, false), position);
+        int readBytes = out.write(_internalNioBuffer(readerIndex, length), position);
         readerIndex += readBytes;
         return readBytes;
     }
@@ -120,14 +118,13 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     /**
      * 获取需要的ByteBuffer
      *
-     * @param index     开始位置
-     * @param length    长度
-     * @param duplicate 是否复制
+     * @param index  开始位置
+     * @param length 长度
      * @return
      */
-    final ByteBuffer _internalNioBuffer(int index, int length, boolean duplicate) {
+    final ByteBuffer _internalNioBuffer(int index, int length) {
         index = idx(index);
-        ByteBuffer buffer = duplicate ? newInternalNioBuffer(memory) : internalNioBuffer();
+        ByteBuffer buffer = internalNioBuffer(memory);
         buffer.limit(index + length).position(index);
         return buffer;
     }
@@ -136,24 +133,5 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         return index;
     }
 
-    /**
-     * 转成ByteBuffer
-     *
-     * @return
-     */
-    public final ByteBuffer internalNioBuffer() {
-        return newInternalNioBuffer(memory);
-    }
-
-    protected abstract ByteBuffer newInternalNioBuffer(T memory);
-
-    /**
-     * 判断buffer是否已经被释放
-     * 每次获取buffer内容之前都要调用
-     */
-    protected final void ensureAccessible() {
-        if (!isAccessible()) {
-            throw new IllegalReferenceCountException(0);
-        }
-    }
+    protected abstract ByteBuffer internalNioBuffer(T memory);
 }

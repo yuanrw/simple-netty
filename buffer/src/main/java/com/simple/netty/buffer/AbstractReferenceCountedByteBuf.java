@@ -36,6 +36,21 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     }
 
     @Override
+    public int refCnt() {
+        return 0;
+    }
+
+    @Override
+    public ByteBuf touch() {
+        return touch(null);
+    }
+
+    @Override
+    public ByteBuf touch(Object hint) {
+        return this;
+    }
+
+    @Override
     public ReferenceCounted retain() {
         UPDATER.getAndAdd(this, 1);
         return this;
@@ -53,6 +68,13 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
         return cnt == 1 ? tryFinalRelease0(1) : nonFinalRelease0(1, cnt);
     }
 
+    @Override
+    public boolean release(int decrement) {
+        int cnt = nonVolatileRawCnt();
+        return decrement == cnt ? tryFinalRelease0(cnt) || retryRelease0(decrement)
+            : nonFinalRelease0(decrement, cnt);
+    }
+
     private boolean tryFinalRelease0(int expectRawCnt) {
         return UPDATER.compareAndSet(this, expectRawCnt, 0);
     }
@@ -62,10 +84,14 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
             && UPDATER.compareAndSet(this, expectRawCnt, expectRawCnt - decrement)) {
             return false;
         }
+        return retryRelease0(decrement);
+    }
+
+    private boolean retryRelease0(int decrement) {
         for (; ; ) {
             int cnt = UPDATER.get(this);
             if (decrement == cnt) {
-                if (tryFinalRelease0(decrement)) {
+                if (tryFinalRelease0(cnt)) {
                     return true;
                 }
             } else if (decrement < cnt) {
@@ -75,8 +101,6 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
             } else {
                 throw new IllegalReferenceCountException(cnt, -decrement);
             }
-            //没成功
-            // this benefits throughput under high contention
             Thread.yield();
         }
     }
@@ -86,19 +110,8 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
             : UPDATER.get(this);
     }
 
-    @Override
-    public boolean release(int decrement) {
-        UPDATER.getAndAdd(this, -decrement);
-        return true;
-    }
-
     protected final void resetRefCnt() {
         UPDATER.set(this, 0);
-    }
-
-    @Override
-    public ReferenceCounted touch() {
-        return touch(null);
     }
 
     private static long getUnsafeOffset() {
