@@ -307,7 +307,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         allocationsHuge.increment();
     }
 
-    void free(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, int normCapacity, PoolThreadCache cache) {
+    void free(PoolChunk<T> chunk, long handle, int normCapacity, PoolThreadCache cache) {
         if (chunk.unpooled) {
             //非池化
             int size = chunk.chunkSize();

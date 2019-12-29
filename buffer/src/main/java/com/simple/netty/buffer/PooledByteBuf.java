@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+import java.util.function.Consumer;
 
 /**
  * Date: 2019-12-14
@@ -12,6 +13,8 @@ import java.nio.channels.GatheringByteChannel;
  * @author yrw
  */
 public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
+
+    Consumer<PooledByteBuf<T>> recycleHandler;
 
     PoolChunk<T> chunk;
 
@@ -36,8 +39,10 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     private ByteBufAllocator allocator;
 
-    PooledByteBuf(int maxCapacity) {
+    @SuppressWarnings("unchecked")
+    PooledByteBuf(Consumer<? extends PooledByteBuf<T>> recycleHandler, int maxCapacity) {
         super(maxCapacity);
+        this.recycleHandler = (Consumer<PooledByteBuf<T>>) recycleHandler;
     }
 
     void init(PoolChunk<T> chunk, long handle, int length, int maxLength, PoolThreadCache cache) {
@@ -113,6 +118,22 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         int readBytes = out.write(_internalNioBuffer(readerIndex, length), position);
         readerIndex += readBytes;
         return readBytes;
+    }
+
+    @Override
+    protected final void deallocate() {
+        if (handle >= 0) {
+            final long handle = this.handle;
+            this.handle = -1;
+            memory = null;
+            chunk.arena.free(chunk, handle, maxLength, cache);
+            chunk = null;
+            recycle();
+        }
+    }
+
+    private void recycle() {
+        recycleHandler.accept(this);
     }
 
     /**

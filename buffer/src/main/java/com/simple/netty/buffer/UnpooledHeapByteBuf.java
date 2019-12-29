@@ -220,4 +220,10 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
     public byte[] array() {
         return array;
     }
+
+    @Override
+    protected void deallocate() {
+        freeArray(array);
+        array = null;
+    }
 }

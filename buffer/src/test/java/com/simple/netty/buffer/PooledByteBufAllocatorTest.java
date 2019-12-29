@@ -19,11 +19,6 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
     }
 
     @Override
-    protected PooledByteBufAllocator newUnpooledAllocator() {
-        return new PooledByteBufAllocator(false);
-    }
-
-    @Override
     protected long expectedUsedMemory(PooledByteBufAllocator allocator, int capacity) {
         return allocator.chunkSize();
     }

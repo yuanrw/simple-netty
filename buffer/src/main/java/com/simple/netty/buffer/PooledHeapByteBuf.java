@@ -3,6 +3,7 @@ package com.simple.netty.buffer;
 import com.simple.netty.common.internal.ObjectPool;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 /**
  * Date: 2019-12-14
@@ -12,10 +13,10 @@ import java.nio.ByteBuffer;
  */
 public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     private static final ObjectPool<PooledHeapByteBuf> RECYCLER = new ObjectPool<>(
-        () -> new PooledHeapByteBuf(0), instance -> {});
+        handler -> new PooledHeapByteBuf(handler, 0));
 
-    protected PooledHeapByteBuf(int maxCapacity) {
-        super(maxCapacity);
+    protected PooledHeapByteBuf(Consumer<PooledHeapByteBuf> recycleHandler, int maxCapacity) {
+        super(recycleHandler, maxCapacity);
     }
 
     static PooledHeapByteBuf newInstance(int maxCapacity) {

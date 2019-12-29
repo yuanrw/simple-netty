@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * NioEventLoop在为数据分配存放的内存时，首先尝试从线程本地缓存申请，失败才从全局内存中申请，
@@ -382,6 +383,7 @@ public class PoolThreadCache {
         }
 
         static final class Entry<T> {
+            final Consumer<Entry<?>> recycleHandler;
             PoolChunk<T> chunk;
             long handle = -1;
 
@@ -389,9 +391,12 @@ public class PoolThreadCache {
                 chunk = null;
                 handle = -1;
             }
+
+            Entry(Consumer<Entry<?>> recycleHandler) {
+                this.recycleHandler = recycleHandler;
+            }
         }
 
-        @SuppressWarnings("rawtypes")
         private static Entry newEntry(PoolChunk<?> chunk, long handle) {
             Entry entry = RECYCLER.get();
             entry.chunk = chunk;
@@ -399,7 +404,7 @@ public class PoolThreadCache {
             return entry;
         }
 
-        @SuppressWarnings("rawtypes")
-        private static final ObjectPool<Entry> RECYCLER = new ObjectPool<>(Entry::new, e -> {});
+        @SuppressWarnings("unchecked")
+        private static final ObjectPool<Entry> RECYCLER = new ObjectPool<>(handler -> new Entry(handler));
     }
 }

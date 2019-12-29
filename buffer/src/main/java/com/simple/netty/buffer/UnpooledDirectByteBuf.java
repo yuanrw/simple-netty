@@ -252,6 +252,20 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
         return out.write(tmpBuf, position);
     }
 
+    @Override
+    protected void deallocate() {
+        ByteBuffer buffer = this.buffer;
+        if (buffer == null) {
+            return;
+        }
+
+        this.buffer = null;
+
+        if (!doNotFree) {
+            freeDirect(buffer);
+        }
+    }
+
     protected ByteBuffer allocateDirect(int initialCapacity) {
         return ByteBuffer.allocateDirect(initialCapacity);
     }

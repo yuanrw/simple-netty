@@ -2,7 +2,7 @@ package com.simple.netty.common.internal;
 
 import java.util.Stack;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Date: 2019-12-26
@@ -12,14 +12,12 @@ import java.util.function.Supplier;
  */
 public class ObjectPool<T> {
 
-    private Supplier<T> objectCreator;
-    private Consumer<T> recycleHandler;
+    private Function<Consumer<T>, T> objectCreator;
 
     private final ThreadLocal<Stack<T>> threadLocal;
 
-    public ObjectPool(Supplier<T> objectCreator, Consumer<T> recycleHandler) {
+    public ObjectPool(Function<Consumer<T>, T> objectCreator) {
         this.objectCreator = objectCreator;
-        this.recycleHandler = recycleHandler;
         this.threadLocal = ThreadLocal.withInitial(Stack::new);
     }
 
@@ -29,15 +27,10 @@ public class ObjectPool<T> {
     public T get() {
         Stack<T> stack = threadLocal.get();
         if (stack.isEmpty()) {
-            return objectCreator.get();
+            Consumer<T> recycleHandler = stack::push;
+            return objectCreator.apply(recycleHandler);
         } else {
             return stack.pop();
         }
-    }
-
-    public void recycle(T object) {
-        recycleHandler.accept(object);
-        Stack<T> stack = threadLocal.get();
-        stack.push(object);
     }
 }

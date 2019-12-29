@@ -3,6 +3,7 @@ package com.simple.netty.buffer;
 import com.simple.netty.common.internal.ObjectPool;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 /**
  * 池化的对外ByteBuf
@@ -14,7 +15,7 @@ import java.nio.ByteBuffer;
 public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
     private static final ObjectPool<PooledDirectByteBuf> RECYCLER = new ObjectPool<>(
-        () -> new PooledDirectByteBuf(0), instance -> {});
+        handler -> new PooledDirectByteBuf(handler, 0));
 
     static PooledDirectByteBuf newInstance(int maxCapacity) {
         PooledDirectByteBuf buf = RECYCLER.get();
@@ -22,8 +23,8 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
         return buf;
     }
 
-    protected PooledDirectByteBuf(int maxCapacity) {
-        super(maxCapacity);
+    protected PooledDirectByteBuf(Consumer<PooledDirectByteBuf> recycleHandler, int maxCapacity) {
+        super(recycleHandler, maxCapacity);
     }
 
     @Override

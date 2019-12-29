@@ -76,7 +76,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     }
 
     private boolean tryFinalRelease0(int expectRawCnt) {
-        return UPDATER.compareAndSet(this, expectRawCnt, 0);
+        return handleRelease(UPDATER.compareAndSet(this, expectRawCnt, 0));
     }
 
     private boolean nonFinalRelease0(int decrement, int expectRawCnt) {
@@ -84,7 +84,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
             && UPDATER.compareAndSet(this, expectRawCnt, expectRawCnt - decrement)) {
             return false;
         }
-        return retryRelease0(decrement);
+        return handleRelease(retryRelease0(decrement));
     }
 
     private boolean retryRelease0(int decrement) {
@@ -109,6 +109,18 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
         return REFCNT_FIELD_OFFSET != -1 ? PlatformDependent.getInt(this, REFCNT_FIELD_OFFSET)
             : UPDATER.get(this);
     }
+
+    private boolean handleRelease(boolean result) {
+        if (result) {
+            deallocate();
+        }
+        return result;
+    }
+
+    /**
+     * 当refCnt()=0时，进行释放
+     */
+    protected abstract void deallocate();
 
     protected final void resetRefCnt() {
         UPDATER.set(this, 1);

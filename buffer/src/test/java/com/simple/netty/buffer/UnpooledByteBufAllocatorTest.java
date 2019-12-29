@@ -10,11 +10,6 @@ public class UnpooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest {
 
     @Override
     protected AbstractByteBufAllocator newAllocator(boolean preferDirect) {
-        return null;
-    }
-
-    @Override
-    protected AbstractByteBufAllocator newUnpooledAllocator() {
-        return null;
+        return new UnpooledByteBufAllocator(preferDirect);
     }
 }

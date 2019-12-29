@@ -3,7 +3,8 @@ package com.simple.netty.buffer;
 import com.simple.netty.common.internal.PlatformDependent;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * Date: 2019-12-28
@@ -15,8 +16,6 @@ public abstract class AbstractByteBufAllocatorTest<T extends AbstractByteBufAllo
 
     @Override
     protected abstract T newAllocator(boolean preferDirect);
-
-    protected abstract T newUnpooledAllocator();
 
     @Override
     protected boolean isDirectExpected(boolean preferDirect) {
