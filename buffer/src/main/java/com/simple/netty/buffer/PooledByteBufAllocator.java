@@ -25,6 +25,9 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
     private static final int DEFAULT_SMALL_CACHE_SIZE = 256;
     private static final int DEFAULT_NORMAL_CACHE_SIZE = 64;
     private static final int DEFAULT_MAX_CACHED_BUFFER_CAPACITY = 32 * 1024;
+    private static final int DEFAULT_DIRECT_MEMORY_CACHE_ALIGNMENT = 0;
+
+    private static final int MIN_PAGE_SIZE = 4096;
     private static final int MAX_CHUNK_SIZE = (int) (((long) Integer.MAX_VALUE + 1) / 2);
 
     private PoolThreadLocalCache threadCache;
@@ -53,11 +56,11 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
 
     public PooledByteBufAllocator(boolean preferDirect) {
         this(preferDirect, DEFAULT_NUM_HEAP_ARENA, DEFAULT_NUM_DIRECT_ARENA, DEFAULT_PAGE_SIZE, DEFAULT_MAX_ORDER,
-            DEFAULT_TINY_CACHE_SIZE, DEFAULT_SMALL_CACHE_SIZE, DEFAULT_NORMAL_CACHE_SIZE);
+            DEFAULT_TINY_CACHE_SIZE, DEFAULT_SMALL_CACHE_SIZE, DEFAULT_NORMAL_CACHE_SIZE, DEFAULT_DIRECT_MEMORY_CACHE_ALIGNMENT);
     }
 
     public PooledByteBufAllocator(boolean preferDirect, int nHeapArena, int nDirectArena, int pageSize, int maxOrder,
-                                  int tinyCacheSize, int smallCacheSize, int normalCacheSize) {
+                                  int tinyCacheSize, int smallCacheSize, int normalCacheSize, int directMemoryCacheAlignment) {
         super(preferDirect);
         this.threadCache = new PoolThreadLocalCache();
         this.tinyCacheSize = tinyCacheSize;
@@ -65,18 +68,47 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
         this.normalCacheSize = normalCacheSize;
         this.chunkSize = validateAndCalculateChunkSize(pageSize, maxOrder);
 
+        int pageShifts = validateAndCalculatePageShifts(pageSize);
+
+        //初始化arena
+
         if (nHeapArena > 0) {
             heapArenas = newArenaArray(nHeapArena);
+            for (int i = 0; i < heapArenas.length; i++) {
+                PoolArena.HeapArena arena = new PoolArena.HeapArena(this,
+                    pageSize, maxOrder, pageShifts, chunkSize,
+                    directMemoryCacheAlignment);
+                heapArenas[i] = arena;
+            }
         } else {
             heapArenas = null;
         }
 
         if (nDirectArena > 0) {
             directArenas = newArenaArray(nDirectArena);
+            for (int i = 0; i < directArenas.length; i++) {
+                PoolArena.DirectArena arena = new PoolArena.DirectArena(
+                    this, pageSize, maxOrder, pageShifts, chunkSize, directMemoryCacheAlignment);
+                directArenas[i] = arena;
+            }
         } else {
             directArenas = null;
         }
     }
+
+    private static int validateAndCalculatePageShifts(int pageSize) {
+        if (pageSize < MIN_PAGE_SIZE) {
+            throw new IllegalArgumentException("pageSize: " + pageSize + " (expected: " + MIN_PAGE_SIZE + ")");
+        }
+
+        if ((pageSize & pageSize - 1) != 0) {
+            throw new IllegalArgumentException("pageSize: " + pageSize + " (expected: power of 2)");
+        }
+
+        // Logarithm base 2. At this point we know that pageSize is a power of two.
+        return Integer.SIZE - 1 - Integer.numberOfLeadingZeros(pageSize);
+    }
+
 
     private static int validateAndCalculateChunkSize(int pageSize, int maxOrder) {
         if (maxOrder > 14) {

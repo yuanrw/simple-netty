@@ -86,7 +86,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     public ByteBufAllocator alloc() {
-        return null;
+        return allocator;
     }
 
     @Override

@@ -26,7 +26,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     /**
      * volatile可以保证属性可见，但不能保证原子性
      */
-    private volatile int refCnt = 0;
+    private volatile int refCnt = 1;
 
     private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> UPDATER =
         AtomicIntegerFieldUpdater.newUpdater(AbstractReferenceCountedByteBuf.class, "refCnt");
@@ -37,7 +37,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     @Override
     public int refCnt() {
-        return 0;
+        return UPDATER.get(this);
     }
 
     @Override
@@ -111,7 +111,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     }
 
     protected final void resetRefCnt() {
-        UPDATER.set(this, 0);
+        UPDATER.set(this, 1);
     }
 
     private static long getUnsafeOffset() {

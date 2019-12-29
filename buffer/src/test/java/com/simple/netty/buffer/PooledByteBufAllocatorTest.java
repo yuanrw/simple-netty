@@ -35,7 +35,8 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
 
     @Test
     public void testAllocNotNull() {
-        PooledByteBufAllocator allocator = new PooledByteBufAllocator(true, 1, 1, 8192, 11, 0, 0, 0);
+        PooledByteBufAllocator allocator = new PooledByteBufAllocator(true, 1, 1,
+            8192, 11, 0, 0, 0, 0);
         // Huge allocation
         testAllocNotNull(allocator, allocator.chunkSize() + 1);
         // Normal allocation

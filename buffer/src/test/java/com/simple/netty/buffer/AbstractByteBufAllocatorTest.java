@@ -61,23 +61,6 @@ public abstract class AbstractByteBufAllocatorTest<T extends AbstractByteBufAllo
     }
 
     @Test
-    public void testUnsafeHeapBufferAndUnsafeDirectBuffer() {
-        T allocator = newUnpooledAllocator();
-        ByteBuf directBuffer = allocator.directBuffer();
-        assertInstanceOf(directBuffer, UnpooledDirectByteBuf.class);
-        directBuffer.release();
-
-        ByteBuf heapBuffer = allocator.heapBuffer();
-        assertInstanceOf(heapBuffer, UnpooledHeapByteBuf.class);
-        heapBuffer.release();
-    }
-
-    protected static void assertInstanceOf(ByteBuf buffer, Class<? extends ByteBuf> clazz) {
-        // Unwrap if needed
-        assertTrue(clazz.isInstance(buffer));
-    }
-
-    @Test
     public void testUsedDirectMemory() {
         T allocator = newAllocator(true);
         assertEquals(0, allocator.usedDirectMemory());

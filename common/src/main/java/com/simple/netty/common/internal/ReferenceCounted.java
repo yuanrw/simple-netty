@@ -31,47 +31,35 @@ package com.simple.netty.common.internal;
  */
 public interface ReferenceCounted {
     /**
-     * Returns the reference count of this object.  If {@code 0}, it means this object has been deallocated.
+     * 返回对象的引用数，如果是0代表被释放
      */
     int refCnt();
 
     /**
-     * Increases the reference count by {@code 1}.
+     * 引用增加1
      */
     ReferenceCounted retain();
 
     /**
-     * Increases the reference count by the specified {@code increment}.
+     * 引用增加increment
      */
     ReferenceCounted retain(int increment);
 
-    /**
-     * Records the current access location of this object for debugging purposes.
-     * If this object is determined to be leaked, the information recorded by this operation will be provided to you
-     * via {@link ResourceLeakDetector}.  This method is a shortcut to {@link #touch(Object) touch(null)}.
-     */
     ReferenceCounted touch();
 
-    /**
-     * Records the current access location of this object with an additional arbitrary information for debugging
-     * purposes.  If this object is determined to be leaked, the information recorded by this operation will be
-     * provided to you via {@link ResourceLeakDetector}.
-     */
     ReferenceCounted touch(Object hint);
 
     /**
-     * Decreases the reference count by {@code 1} and deallocates this object if the reference count reaches at
-     * {@code 0}.
+     * 引用数减少1，如果数量为0释放
      *
-     * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
+     * @return 引用数减少到0且被释放返回true，否则返回false
      */
     boolean release();
 
     /**
-     * Decreases the reference count by the specified {@code decrement} and deallocates this object if the reference
-     * count reaches at {@code 0}.
+     * 引用数减少decrement，如果数量为0释放
      *
-     * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
+     * @return 引用数减少到0且被释放返回true，否则返回false
      */
     boolean release(int decrement);
 }

@@ -20,7 +20,7 @@ public class ObjectPool<T> {
     public ObjectPool(Supplier<T> objectCreator, Consumer<T> recycleHandler) {
         this.objectCreator = objectCreator;
         this.recycleHandler = recycleHandler;
-        this.threadLocal = new ThreadLocal<>();
+        this.threadLocal = ThreadLocal.withInitial(Stack::new);
     }
 
     /**
@@ -28,11 +28,11 @@ public class ObjectPool<T> {
      */
     public T get() {
         Stack<T> stack = threadLocal.get();
-        T o = stack.pop();
-        if (o == null) {
-            o = objectCreator.get();
+        if (stack.isEmpty()) {
+            return objectCreator.get();
+        } else {
+            return stack.pop();
         }
-        return o;
     }
 
     public void recycle(T object) {
