@@ -1,5 +1,7 @@
 package com.simple.netty.buffer;
 
+import com.simple.netty.common.internal.EmptyArrays;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -102,6 +104,11 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     protected void _setInt(int index, int value) {
         HeapByteBufUtil.setInt(array, index, value);
+    }
+
+    @Override
+    protected void _setLong(int index, long value) {
+        HeapByteBufUtil.setLong(array, index, value);
     }
 
     @Override
@@ -218,12 +225,30 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
 
     @Override
     public byte[] array() {
+        ensureAccessible();
         return array;
+    }
+
+    @Override
+    public ByteBuffer nioBuffer(int index, int length) {
+        ensureAccessible();
+        return ByteBuffer.wrap(array, index, length).slice();
+    }
+
+    @Override
+    public ByteBuffer[] nioBuffers(int index, int length) {
+        return new ByteBuffer[]{nioBuffer(index, length)};
+    }
+
+    @Override
+    public ByteBuffer internalNioBuffer(int index, int length) {
+        checkIndex(index, length);
+        return (ByteBuffer) ByteBuffer.wrap(array).clear().position(index).limit(index + length);
     }
 
     @Override
     protected void deallocate() {
         freeArray(array);
-        array = null;
+        array = EmptyArrays.EMPTY_BYTES;
     }
 }

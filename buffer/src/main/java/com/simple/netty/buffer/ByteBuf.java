@@ -92,6 +92,17 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract int getBytes(int index, FileChannel out, long position, int length) throws IOException;
 
 
+    public abstract ByteBuf setShort(int index, int value);
+
+    public abstract ByteBuf setInt(int index, int value);
+
+    public abstract ByteBuf setLong(int index, long value);
+
+    public abstract ByteBuf setChar(int index, int value);
+
+    public abstract ByteBuf setDouble(int index, double value);
+
+
     public abstract ByteBuf setBytes(int index, byte[] src, int srcIndex, int length);
 
     public abstract ByteBuf setBytes(int index, ByteBuffer src);
@@ -157,6 +168,12 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract ByteBuf writeBytes(ByteBuffer src);
 
     public abstract ByteBuf writeBytes(ByteBuf src, int srcIndex, int length);
+
+    public abstract ByteBuffer[] nioBuffers(int index, int length);
+
+    public abstract ByteBuffer nioBuffer(int index, int length);
+
+    public abstract ByteBuffer internalNioBuffer(int index, int length);
 
     boolean isAccessible() {
         return refCnt() != 0;

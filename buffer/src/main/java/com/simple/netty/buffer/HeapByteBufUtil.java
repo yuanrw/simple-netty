@@ -62,6 +62,18 @@ final class HeapByteBufUtil {
         memory[index + 3] = (byte) value;
     }
 
+    static void setLong(byte[] memory, int index, long value) {
+        memory[index] = (byte) (value >>> 56);
+        memory[index + 1] = (byte) (value >>> 48);
+        memory[index + 2] = (byte) (value >>> 40);
+        memory[index + 3] = (byte) (value >>> 32);
+        memory[index + 4] = (byte) (value >>> 24);
+        memory[index + 5] = (byte) (value >>> 16);
+        memory[index + 6] = (byte) (value >>> 8);
+        memory[index + 7] = (byte) value;
+    }
+
+
     private HeapByteBufUtil() {
     }
 }

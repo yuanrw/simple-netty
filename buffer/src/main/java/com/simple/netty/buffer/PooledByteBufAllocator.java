@@ -14,13 +14,16 @@ import java.nio.ByteBuffer;
  */
 public class PooledByteBufAllocator extends AbstractByteBufAllocator {
 
+    public static final PooledByteBufAllocator DEFAULT =
+        new PooledByteBufAllocator(PlatformDependent.directBufferPreferred());
+
     private static final int DEFAULT_NUM_HEAP_ARENA;
     private static final int DEFAULT_NUM_DIRECT_ARENA;
 
-    private static final int DEFAULT_PAGE_SIZE;
+    private static final int DEFAULT_PAGE_SIZE = 8192;
 
     // 8192 << 11 = 16 MiB per chunk
-    private static final int DEFAULT_MAX_ORDER;
+    private static final int DEFAULT_MAX_ORDER = 11;
     private static final int DEFAULT_TINY_CACHE_SIZE = 512;
     private static final int DEFAULT_SMALL_CACHE_SIZE = 256;
     private static final int DEFAULT_NORMAL_CACHE_SIZE = 64;
@@ -33,9 +36,6 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator {
     private PoolThreadLocalCache threadCache;
 
     static {
-        DEFAULT_PAGE_SIZE = 8192;
-        DEFAULT_MAX_ORDER = 11;
-
         final int defaultMinNumArena = NettyRuntime.availableProcessors() * 2;
         final int defaultChunkSize = DEFAULT_PAGE_SIZE << DEFAULT_MAX_ORDER;
 

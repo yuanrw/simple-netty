@@ -58,6 +58,11 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
     }
 
     @Override
+    protected void _setLong(int index, long value) {
+        memory.putLong(idx(index), value);
+    }
+
+    @Override
     protected void _setShort(int index, int value) {
         memory.putShort(idx(index), (short) value);
     }
@@ -80,21 +85,14 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
     @Override
     public ByteBuf getBytes(int index, ByteBuffer dst) {
-        dst.put(_internalNioBuffer(index, dst.remaining()));
-        return this;
-    }
-
-    @Override
-    public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
-        checkDstIndex(index, length, dstIndex, dst.length);
-        _internalNioBuffer(index, length).get(dst, dstIndex, length);
+        dst.put(duplicateInternalNioBuffer(index, dst.remaining()));
         return this;
     }
 
     @Override
     public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
         checkSrcIndex(index, length, srcIndex, src.length);
-        _internalNioBuffer(index, length).put(src, srcIndex, length);
+        internalNioBuffer(index, length).put(src, srcIndex, length);
         return this;
     }
 
@@ -102,7 +100,7 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
     public ByteBuf setBytes(int index, ByteBuffer src) {
         int length = src.remaining();
         checkIndex(index, length);
-        ByteBuffer tmpBuf = internalNioBuffer(memory);
+        ByteBuffer tmpBuf = newInternalNioBuffer(memory);
         if (src == tmpBuf) {
             src = src.duplicate();
         }
@@ -110,6 +108,13 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
         index = idx(index);
         tmpBuf.clear().position(index).limit(index + length);
         tmpBuf.put(src);
+        return this;
+    }
+
+    @Override
+    public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
+        checkDstIndex(index, length, dstIndex, dst.length);
+        internalNioBuffer(index, length).get(dst, dstIndex, length);
         return this;
     }
 
@@ -135,7 +140,7 @@ public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
     }
 
     @Override
-    protected ByteBuffer internalNioBuffer(ByteBuffer memory) {
+    protected ByteBuffer newInternalNioBuffer(ByteBuffer memory) {
         return memory.duplicate();
     }
 }

@@ -56,6 +56,11 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     }
 
     @Override
+    protected void _setLong(int index, long value) {
+        HeapByteBufUtil.setLong(memory, idx(index), value);
+    }
+
+    @Override
     protected void _setShort(int index, int value) {
         HeapByteBufUtil.setShort(memory, idx(index), value);
     }
@@ -129,7 +134,7 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     }
 
     @Override
-    protected ByteBuffer internalNioBuffer(byte[] memory) {
+    protected ByteBuffer newInternalNioBuffer(byte[] memory) {
         return ByteBuffer.wrap(memory);
     }
 }

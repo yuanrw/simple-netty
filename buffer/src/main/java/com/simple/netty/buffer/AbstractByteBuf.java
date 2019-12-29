@@ -360,7 +360,44 @@ public abstract class AbstractByteBuf extends ByteBuf {
         return this;
     }
 
+    @Override
+    public ByteBuf setShort(int index, int value) {
+        checkIndex(index, 2);
+        _setShort(index, value);
+        return this;
+    }
+
+    protected abstract void _setShort(int index, int value);
+
+    @Override
+    public ByteBuf setInt(int index, int value) {
+        checkIndex(index, 4);
+        _setInt(index, value);
+        return this;
+    }
+
     protected abstract void _setInt(int index, int value);
+
+    @Override
+    public ByteBuf setLong(int index, long value) {
+        checkIndex(index, 8);
+        _setLong(index, value);
+        return this;
+    }
+
+    protected abstract void _setLong(int index, long value);
+
+    @Override
+    public ByteBuf setDouble(int index, double value) {
+        setLong(index, Double.doubleToRawLongBits(value));
+        return this;
+    }
+
+    @Override
+    public ByteBuf setChar(int index, int value) {
+        setShort(index, value);
+        return this;
+    }
 
     @Override
     public ByteBuf writeShort(int value) {
@@ -369,8 +406,6 @@ public abstract class AbstractByteBuf extends ByteBuf {
         writerIndex += 2;
         return this;
     }
-
-    protected abstract void _setShort(int index, int value);
 
     @Override
     public ByteBuf writeChar(int value) {
@@ -432,6 +467,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
      * @param fieldLength
      */
     protected final void checkIndex(int index, int fieldLength) {
+        ensureAccessible();
         checkRangeBounds("index", index, fieldLength, capacity());
     }
 
@@ -452,6 +488,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     private void checkReadableBytes0(int minimumReadableBytes) {
+        ensureAccessible();
         if (readerIndex > writerIndex - minimumReadableBytes) {
             throw new IndexOutOfBoundsException(String.format(
                 "readerIndex(%d) + length(%d) exceeds writerIndex(%d): %s",
@@ -482,11 +519,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
         //空间足够
         if (targetCapacity <= capacity()) {
+            ensureAccessible();
             return;
         }
 
         //超过最大容量
         if (targetCapacity > maxCapacity) {
+            ensureAccessible();
             throw new IndexOutOfBoundsException(String.format(
                 "writerIndex(%d) + minWritableBytes(%d) exceeds maxCapacity(%d): %s",
                 writerIndex, minWritableBytes, maxCapacity, this));

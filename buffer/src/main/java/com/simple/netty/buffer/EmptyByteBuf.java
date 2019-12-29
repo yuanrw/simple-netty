@@ -9,6 +9,8 @@ import java.nio.ReadOnlyBufferException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 
+import static com.simple.netty.common.internal.ObjectUtil.checkPositiveOrZero;
+
 /**
  * Date: 2019-12-25
  * Time: 19:05
@@ -17,6 +19,7 @@ import java.nio.channels.GatheringByteChannel;
  */
 public class EmptyByteBuf extends ByteBuf {
 
+    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocateDirect(0);
     private final ByteBufAllocator alloc;
 
     EmptyByteBuf(ByteBufAllocator alloc) {
@@ -204,6 +207,31 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf setShort(int index, int value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf setInt(int index, int value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf setLong(int index, long value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf setChar(int index, int value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf setDouble(int index, double value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
     public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
         throw new IndexOutOfBoundsException();
     }
@@ -364,6 +392,26 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuffer[] nioBuffers(int index, int length) {
+        return new ByteBuffer[]{EMPTY_BYTE_BUFFER};
+    }
+
+    @Override
+    public ByteBuffer nioBuffer(int index, int length) {
+        checkIndex(index, length);
+        return nioBuffer();
+    }
+
+    public ByteBuffer nioBuffer() {
+        return EMPTY_BYTE_BUFFER;
+    }
+
+    @Override
+    public ByteBuffer internalNioBuffer(int index, int length) {
+        return EMPTY_BYTE_BUFFER;
+    }
+
+    @Override
     public int refCnt() {
         return 1;
     }
@@ -396,5 +444,13 @@ public class EmptyByteBuf extends ByteBuf {
     @Override
     public boolean release(int decrement) {
         return false;
+    }
+
+    private ByteBuf checkIndex(int index, int length) {
+        checkPositiveOrZero(length, "length");
+        if (index != 0 || length != 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return this;
     }
 }

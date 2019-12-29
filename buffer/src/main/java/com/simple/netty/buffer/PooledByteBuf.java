@@ -26,6 +26,11 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     T memory;
 
     /**
+     * 起始偏移
+     */
+    protected int offset;
+
+    /**
      * 字节长度
      */
     protected int length;
@@ -45,11 +50,11 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         this.recycleHandler = (Consumer<PooledByteBuf<T>>) recycleHandler;
     }
 
-    void init(PoolChunk<T> chunk, long handle, int length, int maxLength, PoolThreadCache cache) {
-        init0(chunk, handle, length, maxLength, cache);
+    void init(PoolChunk<T> chunk, long handle, int offset, int length, int maxLength, PoolThreadCache cache) {
+        init0(chunk, handle, offset, length, maxLength, cache);
     }
 
-    private void init0(PoolChunk<T> chunk, long handle, int length, int maxLength, PoolThreadCache cache) {
+    private void init0(PoolChunk<T> chunk, long handle, int offset, int length, int maxLength, PoolThreadCache cache) {
         assert handle >= 0;
         assert chunk != null;
 
@@ -58,12 +63,13 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         allocator = chunk.arena.parent;
         this.cache = cache;
         this.handle = handle;
+        this.offset = offset;
         this.length = length;
         this.maxLength = maxLength;
     }
 
     void initUnpooled(PoolChunk<T> chunk, int length) {
-        init0(chunk, 0, length, length, null);
+        init0(chunk, 0, 0, length, length, null);
     }
 
     /**
@@ -96,7 +102,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     public final int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
-        return 0;
+        return out.write(internalNioBuffer(index, length));
     }
 
     @Override
@@ -107,7 +113,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     public final int readBytes(GatheringByteChannel out, int length) throws IOException {
         checkReadableBytes(length);
-        int readBytes = out.write(_internalNioBuffer(readerIndex, length));
+        int readBytes = out.write(internalNioBuffer(readerIndex, length));
         readerIndex += readBytes;
         return readBytes;
     }
@@ -115,7 +121,7 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     public final int readBytes(FileChannel out, long position, int length) throws IOException {
         checkReadableBytes(length);
-        int readBytes = out.write(_internalNioBuffer(readerIndex, length), position);
+        int readBytes = out.write(internalNioBuffer(readerIndex, length), position);
         readerIndex += readBytes;
         return readBytes;
     }
@@ -136,23 +142,37 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         recycleHandler.accept(this);
     }
 
-    /**
-     * 获取需要的ByteBuffer
-     *
-     * @param index  开始位置
-     * @param length 长度
-     * @return
-     */
+    @Override
+    public final ByteBuffer nioBuffer(int index, int length) {
+        return duplicateInternalNioBuffer(index, length).slice();
+    }
+
+    ByteBuffer duplicateInternalNioBuffer(int index, int length) {
+        checkIndex(index, length);
+        return _internalNioBuffer(index, length);
+    }
+
+    @Override
+    public final ByteBuffer[] nioBuffers(int index, int length) {
+        return new ByteBuffer[]{nioBuffer(index, length)};
+    }
+
+    @Override
+    public final ByteBuffer internalNioBuffer(int index, int length) {
+        checkIndex(index, length);
+        return _internalNioBuffer(index, length);
+    }
+
     final ByteBuffer _internalNioBuffer(int index, int length) {
         index = idx(index);
-        ByteBuffer buffer = internalNioBuffer(memory);
+        ByteBuffer buffer = newInternalNioBuffer(memory);
         buffer.limit(index + length).position(index);
         return buffer;
     }
 
     protected final int idx(int index) {
-        return index;
+        return offset + index;
     }
 
-    protected abstract ByteBuffer internalNioBuffer(T memory);
+    protected abstract ByteBuffer newInternalNioBuffer(T memory);
 }
