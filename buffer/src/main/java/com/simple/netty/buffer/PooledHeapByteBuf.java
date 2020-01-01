@@ -26,6 +26,27 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     }
 
     @Override
+    public boolean isDirect() {
+        return false;
+    }
+
+    @Override
+    public boolean hasArray() {
+        return true;
+    }
+
+    @Override
+    public byte[] array() {
+        ensureAccessible();
+        return memory;
+    }
+
+    @Override
+    protected ByteBuffer newInternalNioBuffer(byte[] memory) {
+        return ByteBuffer.wrap(memory);
+    }
+
+    @Override
     protected byte _getByte(int index) {
         return HeapByteBufUtil.getByte(memory, idx(index));
     }
@@ -43,31 +64,6 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     @Override
     protected long _getLong(int index) {
         return HeapByteBufUtil.getLong(memory, index);
-    }
-
-    @Override
-    protected void _setByte(int index, int value) {
-        HeapByteBufUtil.setByte(memory, idx(index), value);
-    }
-
-    @Override
-    protected void _setInt(int index, int value) {
-        HeapByteBufUtil.setInt(memory, idx(index), value);
-    }
-
-    @Override
-    protected void _setLong(int index, long value) {
-        HeapByteBufUtil.setLong(memory, idx(index), value);
-    }
-
-    @Override
-    protected void _setShort(int index, int value) {
-        HeapByteBufUtil.setShort(memory, idx(index), value);
-    }
-
-    @Override
-    public boolean isDirect() {
-        return false;
     }
 
     @Override
@@ -97,6 +93,26 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
     }
 
     @Override
+    protected void _setByte(int index, int value) {
+        HeapByteBufUtil.setByte(memory, idx(index), value);
+    }
+
+    @Override
+    protected void _setShort(int index, int value) {
+        HeapByteBufUtil.setShort(memory, idx(index), value);
+    }
+
+    @Override
+    protected void _setInt(int index, int value) {
+        HeapByteBufUtil.setInt(memory, idx(index), value);
+    }
+
+    @Override
+    protected void _setLong(int index, long value) {
+        HeapByteBufUtil.setLong(memory, idx(index), value);
+    }
+
+    @Override
     public final ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
         checkSrcIndex(index, length, srcIndex, src.length);
         System.arraycopy(src, srcIndex, memory, idx(index), length);
@@ -120,21 +136,5 @@ public class PooledHeapByteBuf extends PooledByteBuf<byte[]> {
             src.getBytes(srcIndex, memory, idx(index), length);
         }
         return this;
-    }
-
-    @Override
-    public boolean hasArray() {
-        return true;
-    }
-
-    @Override
-    public byte[] array() {
-        ensureAccessible();
-        return memory;
-    }
-
-    @Override
-    protected ByteBuffer newInternalNioBuffer(byte[] memory) {
-        return ByteBuffer.wrap(memory);
     }
 }

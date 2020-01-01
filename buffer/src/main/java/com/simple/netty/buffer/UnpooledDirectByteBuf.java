@@ -54,8 +54,20 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
         writerIndex(initialCapacity);
     }
 
-    protected void freeDirect(ByteBuffer buffer) {
-        PlatformDependent.freeDirectBuffer(buffer);
+    @Override
+    public boolean hasArray() {
+        return false;
+    }
+
+    @Override
+    public byte[] array() {
+        throw new UnsupportedOperationException("direct buffer");
+    }
+
+    @Override
+    public ByteBuffer internalNioBuffer(int index, int length) {
+        checkIndex(index, length);
+        return (ByteBuffer) buffer.duplicate().clear().position(index).limit(index + length);
     }
 
     void setByteBuffer(ByteBuffer buffer, boolean tryFree) {
@@ -72,6 +84,31 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
 
         this.buffer = buffer;
         capacity = buffer.remaining();
+    }
+
+    protected void freeDirect(ByteBuffer buffer) {
+        PlatformDependent.freeDirectBuffer(buffer);
+    }
+
+    @Override
+    public ByteBufAllocator alloc() {
+        return alloc;
+    }
+
+    @Override
+    public boolean isDirect() {
+        return true;
+    }
+
+    @Override
+    public ByteBuffer[] nioBuffers(int index, int length) {
+        return new ByteBuffer[]{nioBuffer(index, length)};
+    }
+
+    @Override
+    public ByteBuffer nioBuffer(int index, int length) {
+        checkIndex(index, length);
+        return ((ByteBuffer) buffer.duplicate().position(index).limit(index + length)).slice();
     }
 
     @Override
@@ -119,85 +156,6 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
-    protected void _setByte(int index, int value) {
-        buffer.put(index, (byte) value);
-    }
-
-    @Override
-    public ByteBuf setShort(int index, int value) {
-        ensureAccessible();
-        _setShort(index, value);
-        return this;
-    }
-
-    @Override
-    protected void _setShort(int index, int value) {
-        buffer.putShort(index, (short) value);
-    }
-
-    @Override
-    public ByteBuf setLong(int index, long value) {
-        ensureAccessible();
-        _setLong(index, value);
-        return this;
-    }
-
-    @Override
-    protected void _setLong(int index, long value) {
-        buffer.putLong(index, value);
-    }
-
-    @Override
-    public ByteBuf setInt(int index, int value) {
-        ensureAccessible();
-        _setInt(index, value);
-        return this;
-    }
-
-    @Override
-    protected void _setInt(int index, int value) {
-        buffer.putInt(index, value);
-    }
-
-    @Override
-    public int capacity() {
-        return capacity;
-    }
-
-    @Override
-    public ByteBuf capacity(int newCapacity) {
-        checkNewCapacity(newCapacity);
-        int oldCapacity = capacity;
-        if (newCapacity == oldCapacity) {
-            return this;
-        }
-        int bytesToCopy;
-        if (newCapacity > oldCapacity) {
-            bytesToCopy = oldCapacity;
-        } else {
-            trimIndicesToCapacity(newCapacity);
-            bytesToCopy = newCapacity;
-        }
-        ByteBuffer oldBuffer = buffer;
-        ByteBuffer newBuffer = allocateDirect(newCapacity);
-        oldBuffer.position(0).limit(bytesToCopy);
-        newBuffer.position(0).limit(bytesToCopy);
-        newBuffer.put(oldBuffer).clear();
-        setByteBuffer(newBuffer, true);
-        return this;
-    }
-
-    @Override
-    public ByteBufAllocator alloc() {
-        return alloc;
-    }
-
-    @Override
-    public boolean isDirect() {
-        return true;
-    }
-
-    @Override
     public ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
         checkDstIndex(index, length, dstIndex, dst.capacity());
         if (dst.hasArray()) {
@@ -233,6 +191,77 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
+    public int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
+        ensureAccessible();
+        if (length == 0) {
+            return 0;
+        }
+        ByteBuffer tmpBuf = buffer.duplicate();
+        tmpBuf.clear().position(index).limit(index + length);
+        return out.write(tmpBuf);
+    }
+
+    @Override
+    public int getBytes(int index, FileChannel out, long position, int length) throws IOException {
+        ensureAccessible();
+        if (length == 0) {
+            return 0;
+        }
+
+        ByteBuffer tmpBuf = buffer.duplicate();
+        tmpBuf.clear().position(index).limit(index + length);
+        return out.write(tmpBuf, position);
+    }
+
+    @Override
+    public ByteBuf setByte(int index, int value) {
+        ensureAccessible();
+        _setByte(index, value);
+        return this;
+    }
+
+    @Override
+    protected void _setByte(int index, int value) {
+        buffer.put(index, (byte) value);
+    }
+
+    @Override
+    public ByteBuf setShort(int index, int value) {
+        ensureAccessible();
+        _setShort(index, value);
+        return this;
+    }
+
+    @Override
+    protected void _setShort(int index, int value) {
+        buffer.putShort(index, (short) value);
+    }
+
+    @Override
+    public ByteBuf setInt(int index, int value) {
+        ensureAccessible();
+        _setInt(index, value);
+        return this;
+    }
+
+    @Override
+    protected void _setInt(int index, int value) {
+        buffer.putInt(index, value);
+    }
+
+    @Override
+    public ByteBuf setLong(int index, long value) {
+        ensureAccessible();
+        _setLong(index, value);
+        return this;
+    }
+
+    @Override
+    protected void _setLong(int index, long value) {
+        buffer.putLong(index, value);
+    }
+
+    @Override
     public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
         checkSrcIndex(index, length, srcIndex, src.length);
         ByteBuffer tmpBuf = buffer.duplicate();
@@ -262,53 +291,31 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
-    public ByteBuffer[] nioBuffers(int index, int length) {
-        return new ByteBuffer[]{nioBuffer(index, length)};
+    public int capacity() {
+        return capacity;
     }
 
     @Override
-    public ByteBuffer nioBuffer(int index, int length) {
-        checkIndex(index, length);
-        return ((ByteBuffer) buffer.duplicate().position(index).limit(index + length)).slice();
-    }
-
-    @Override
-    public boolean hasArray() {
-        return false;
-    }
-
-    @Override
-    public byte[] array() {
-        throw new UnsupportedOperationException("direct buffer");
-    }
-
-    @Override
-    public ByteBuffer internalNioBuffer(int index, int length) {
-        checkIndex(index, length);
-        return (ByteBuffer) buffer.duplicate().clear().position(index).limit(index + length);
-    }
-
-    @Override
-    public int getBytes(int index, GatheringByteChannel out, int length) throws IOException {
-        ensureAccessible();
-        if (length == 0) {
-            return 0;
+    public ByteBuf capacity(int newCapacity) {
+        checkNewCapacity(newCapacity);
+        int oldCapacity = capacity;
+        if (newCapacity == oldCapacity) {
+            return this;
         }
-        ByteBuffer tmpBuf = buffer.duplicate();
-        tmpBuf.clear().position(index).limit(index + length);
-        return out.write(tmpBuf);
-    }
-
-    @Override
-    public int getBytes(int index, FileChannel out, long position, int length) throws IOException {
-        ensureAccessible();
-        if (length == 0) {
-            return 0;
+        int bytesToCopy;
+        if (newCapacity > oldCapacity) {
+            bytesToCopy = oldCapacity;
+        } else {
+            trimIndicesToCapacity(newCapacity);
+            bytesToCopy = newCapacity;
         }
-
-        ByteBuffer tmpBuf = buffer.duplicate();
-        tmpBuf.clear().position(index).limit(index + length);
-        return out.write(tmpBuf, position);
+        ByteBuffer oldBuffer = buffer;
+        ByteBuffer newBuffer = allocateDirect(newCapacity);
+        oldBuffer.position(0).limit(bytesToCopy);
+        newBuffer.position(0).limit(bytesToCopy);
+        newBuffer.put(oldBuffer).clear();
+        setByteBuffer(newBuffer, true);
+        return this;
     }
 
     @Override

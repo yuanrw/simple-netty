@@ -162,6 +162,11 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public float getFloat(int index) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
     public double getDouble(int index) {
         throw new IndexOutOfBoundsException();
     }
@@ -207,6 +212,16 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf setBoolean(int index, boolean value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf setByte(int index, int value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
     public ByteBuf setShort(int index, int value) {
         throw new IndexOutOfBoundsException();
     }
@@ -227,6 +242,11 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf setFloat(int index, float value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
     public ByteBuf setDouble(int index, double value) {
         throw new IndexOutOfBoundsException();
     }
@@ -243,7 +263,7 @@ public class EmptyByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
-        return null;
+        throw new IndexOutOfBoundsException();
     }
 
     @Override
@@ -283,6 +303,11 @@ public class EmptyByteBuf extends ByteBuf {
 
     @Override
     public char readChar() {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public float readFloat() {
         throw new IndexOutOfBoundsException();
     }
 
@@ -352,12 +377,27 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf writeLong(long value) {
+        return null;
+    }
+
+    @Override
     public ByteBuf writeShort(int value) {
         throw new IndexOutOfBoundsException();
     }
 
     @Override
     public ByteBuf writeChar(int value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf writeFloat(float value) {
+        throw new IndexOutOfBoundsException();
+    }
+
+    @Override
+    public ByteBuf writeDouble(double value) {
         throw new IndexOutOfBoundsException();
     }
 

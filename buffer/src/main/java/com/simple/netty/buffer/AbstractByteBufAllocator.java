@@ -22,7 +22,6 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
      * 默认最大容量
      */
     static final int DEFAULT_MAX_CAPACITY = Integer.MAX_VALUE;
-    static final int DEFAULT_MAX_COMPONENTS = 16;
     // 4 MiB page
     static final int CALCULATE_THRESHOLD = 1048576 * 4;
 

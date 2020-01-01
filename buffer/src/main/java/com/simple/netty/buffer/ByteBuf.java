@@ -63,6 +63,8 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract boolean getBoolean(int index);
 
+    public abstract char getChar(int index);
+
     public abstract byte getByte(int index);
 
     public abstract short getShort(int index);
@@ -71,9 +73,10 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract long getLong(int index);
 
-    public abstract char getChar(int index);
+    public abstract float getFloat(int index);
 
     public abstract double getDouble(int index);
+
 
     public abstract ByteBuf getBytes(int index, ByteBuf dst);
 
@@ -92,13 +95,19 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract int getBytes(int index, FileChannel out, long position, int length) throws IOException;
 
 
+    public abstract ByteBuf setBoolean(int index, boolean value);
+
+    public abstract ByteBuf setChar(int index, int value);
+
+    public abstract ByteBuf setByte(int index, int value);
+
     public abstract ByteBuf setShort(int index, int value);
 
     public abstract ByteBuf setInt(int index, int value);
 
     public abstract ByteBuf setLong(int index, long value);
 
-    public abstract ByteBuf setChar(int index, int value);
+    public abstract ByteBuf setFloat(int index, float value);
 
     public abstract ByteBuf setDouble(int index, double value);
 
@@ -109,12 +118,15 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length);
 
+
     public abstract boolean hasArray();
 
     public abstract byte[] array();
 
 
     public abstract boolean readBoolean();
+
+    public abstract char readChar();
 
     public abstract byte readByte();
 
@@ -124,9 +136,10 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract long readLong();
 
-    public abstract char readChar();
+    public abstract float readFloat();
 
     public abstract double readDouble();
+
 
     public abstract ByteBuf readBytes(int length);
 
@@ -149,13 +162,20 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract ByteBuf writeBoolean(boolean value);
 
-    public abstract ByteBuf writeByte(int value);
+    public abstract ByteBuf writeChar(int value);
 
-    public abstract ByteBuf writeInt(int value);
+    public abstract ByteBuf writeByte(int value);
 
     public abstract ByteBuf writeShort(int value);
 
-    public abstract ByteBuf writeChar(int value);
+    public abstract ByteBuf writeInt(int value);
+
+    public abstract ByteBuf writeLong(long value);
+
+    public abstract ByteBuf writeFloat(float value);
+
+    public abstract ByteBuf writeDouble(double value);
+
 
     public abstract ByteBuf writeBytes(ByteBuf src);
 
@@ -168,6 +188,7 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract ByteBuf writeBytes(ByteBuffer src);
 
     public abstract ByteBuf writeBytes(ByteBuf src, int srcIndex, int length);
+
 
     public abstract ByteBuffer[] nioBuffers(int index, int length);
 

@@ -384,6 +384,21 @@ public abstract class AbstractByteBufTest {
     }
 
     @Test
+    public void testRandomFloatAccess() {
+        for (int i = 0; i < buffer.capacity() - 7; i += 8) {
+            float value = random.nextFloat();
+            buffer.setFloat(i, value);
+        }
+
+        random.setSeed(seed);
+        for (int i = 0; i < buffer.capacity() - 7; i += 8) {
+            float expected = random.nextFloat();
+            float actual = buffer.getFloat(i);
+            assertEquals(expected, actual, 0.01);
+        }
+    }
+
+    @Test
     public void testRandomDoubleAccess() {
         for (int i = 0; i < buffer.capacity() - 7; i += 8) {
             double value = random.nextDouble();
@@ -739,6 +754,11 @@ public abstract class AbstractByteBufTest {
     }
 
     @Test(expected = IllegalReferenceCountException.class)
+    public void testSetBooleanAfterRelease() {
+        releasedBuffer().setBoolean(0, true);
+    }
+
+    @Test(expected = IllegalReferenceCountException.class)
     public void testSetShortAfterRelease() {
         releasedBuffer().setShort(0, 1);
     }
@@ -814,6 +834,11 @@ public abstract class AbstractByteBufTest {
     }
 
     @Test(expected = IllegalReferenceCountException.class)
+    public void testReadFloatAfterRelease() {
+        releasedBuffer().readFloat();
+    }
+
+    @Test(expected = IllegalReferenceCountException.class)
     public void testReadDoubleAfterRelease() {
         releasedBuffer().readDouble();
     }
@@ -886,6 +911,16 @@ public abstract class AbstractByteBufTest {
     @Test(expected = IllegalReferenceCountException.class)
     public void testWriteShortAfterRelease() {
         releasedBuffer().writeShort(1);
+    }
+
+    @Test(expected = IllegalReferenceCountException.class)
+    public void testWriteFloatAfterRelease() {
+        releasedBuffer().writeFloat(1);
+    }
+
+    @Test(expected = IllegalReferenceCountException.class)
+    public void testWriteDoubleAfterRelease() {
+        releasedBuffer().writeDouble(1);
     }
 
     @Test(expected = IllegalReferenceCountException.class)

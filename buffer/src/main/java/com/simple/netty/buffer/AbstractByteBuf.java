@@ -137,8 +137,73 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    public ByteBuf setBoolean(int index, boolean value) {
+        setByte(index, value ? 1 : 0);
+        return this;
+    }
+
+    @Override
+    public ByteBuf setChar(int index, int value) {
+        setShort(index, value);
+        return this;
+    }
+
+    @Override
+    public ByteBuf setByte(int index, int value) {
+        checkIndex(index);
+        _setByte(index, value);
+        return this;
+    }
+
+    protected abstract void _setByte(int index, int value);
+
+    @Override
+    public ByteBuf setShort(int index, int value) {
+        checkIndex(index, 2);
+        _setShort(index, value);
+        return this;
+    }
+
+    protected abstract void _setShort(int index, int value);
+
+    @Override
+    public ByteBuf setInt(int index, int value) {
+        checkIndex(index, 4);
+        _setInt(index, value);
+        return this;
+    }
+
+    protected abstract void _setInt(int index, int value);
+
+    @Override
+    public ByteBuf setFloat(int index, float value) {
+        setInt(index, Float.floatToRawIntBits(value));
+        return this;
+    }
+
+    @Override
+    public ByteBuf setLong(int index, long value) {
+        checkIndex(index, 8);
+        _setLong(index, value);
+        return this;
+    }
+
+    protected abstract void _setLong(int index, long value);
+
+    @Override
+    public ByteBuf setDouble(int index, double value) {
+        setLong(index, Double.doubleToRawLongBits(value));
+        return this;
+    }
+
+    @Override
     public boolean getBoolean(int index) {
         return getByte(index) != 0;
+    }
+
+    @Override
+    public char getChar(int index) {
+        return (char) getShort(index);
     }
 
     @Override
@@ -166,17 +231,17 @@ public abstract class AbstractByteBuf extends ByteBuf {
     protected abstract int _getInt(int index);
 
     @Override
-    public char getChar(int index) {
-        return (char) getShort(index);
-    }
-
-    @Override
     public long getLong(int index) {
         checkIndex(index, 8);
         return _getLong(index);
     }
 
     protected abstract long _getLong(int index);
+
+    @Override
+    public float getFloat(int index) {
+        return Float.intBitsToFloat(getInt(index));
+    }
 
     @Override
     public double getDouble(int index) {
@@ -208,6 +273,11 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    public char readChar() {
+        return (char) readShort();
+    }
+
+    @Override
     public byte readByte() {
         checkReadableBytes0(1);
         int i = readerIndex;
@@ -233,6 +303,11 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
+    public float readFloat() {
+        return Float.intBitsToFloat(readInt());
+    }
+
+    @Override
     public long readLong() {
         checkReadableBytes0(8);
         long v = _getLong(readerIndex);
@@ -240,10 +315,6 @@ public abstract class AbstractByteBuf extends ByteBuf {
         return v;
     }
 
-    @Override
-    public char readChar() {
-        return (char) readShort();
-    }
 
     @Override
     public double readDouble() {
@@ -330,18 +401,11 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
-        ensureWritable(length);
-        setBytes(writerIndex, src, srcIndex, length);
-        writerIndex += length;
-        return this;
-    }
-
-    @Override
     public ByteBuf writeBoolean(boolean value) {
         writeByte(value ? 1 : 0);
         return this;
     }
+
 
     @Override
     public ByteBuf writeByte(int value) {
@@ -350,52 +414,9 @@ public abstract class AbstractByteBuf extends ByteBuf {
         return this;
     }
 
-    protected abstract void _setByte(int index, int value);
-
     @Override
-    public ByteBuf writeInt(int value) {
-        ensureWritable0(4);
-        _setInt(writerIndex, value);
-        writerIndex += 4;
-        return this;
-    }
-
-    @Override
-    public ByteBuf setShort(int index, int value) {
-        checkIndex(index, 2);
-        _setShort(index, value);
-        return this;
-    }
-
-    protected abstract void _setShort(int index, int value);
-
-    @Override
-    public ByteBuf setInt(int index, int value) {
-        checkIndex(index, 4);
-        _setInt(index, value);
-        return this;
-    }
-
-    protected abstract void _setInt(int index, int value);
-
-    @Override
-    public ByteBuf setLong(int index, long value) {
-        checkIndex(index, 8);
-        _setLong(index, value);
-        return this;
-    }
-
-    protected abstract void _setLong(int index, long value);
-
-    @Override
-    public ByteBuf setDouble(int index, double value) {
-        setLong(index, Double.doubleToRawLongBits(value));
-        return this;
-    }
-
-    @Override
-    public ByteBuf setChar(int index, int value) {
-        setShort(index, value);
+    public ByteBuf writeChar(int value) {
+        writeShort(value);
         return this;
     }
 
@@ -408,8 +429,38 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     @Override
-    public ByteBuf writeChar(int value) {
-        writeShort(value);
+    public ByteBuf writeInt(int value) {
+        ensureWritable0(4);
+        _setInt(writerIndex, value);
+        writerIndex += 4;
+        return this;
+    }
+
+    @Override
+    public ByteBuf writeFloat(float value) {
+        writeInt(Float.floatToRawIntBits(value));
+        return this;
+    }
+
+    @Override
+    public ByteBuf writeLong(long value) {
+        ensureWritable0(8);
+        _setLong(writerIndex, value);
+        writerIndex += 8;
+        return this;
+    }
+
+    @Override
+    public ByteBuf writeDouble(double value) {
+        writeLong(Double.doubleToRawLongBits(value));
+        return this;
+    }
+
+    @Override
+    public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
+        ensureWritable(length);
+        setBytes(writerIndex, src, srcIndex, length);
+        writerIndex += length;
         return this;
     }
 
