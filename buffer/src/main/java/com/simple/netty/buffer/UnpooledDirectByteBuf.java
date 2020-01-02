@@ -16,10 +16,13 @@ import java.nio.channels.GatheringByteChannel;
  */
 public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
 
+    /**
+     * 用于分配内存
+     */
     private final ByteBufAllocator alloc;
 
     /**
-     * 通过unsafe直接获取
+     * 缓冲区，通过unsafe直接获取
      */
     ByteBuffer buffer;
     private int capacity;
@@ -27,7 +30,6 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
 
     public UnpooledDirectByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
         super(maxCapacity);
-
         this.alloc = alloc;
 
         //初始化buffer
@@ -35,9 +37,9 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     }
 
     /**
-     * 创建一个新的direct buffer
+     * 创建一个新的DirectBuffer
      *
-     * @param maxCapacity direct buffer的最大容量
+     * @param maxCapacity DirectBuffer的最大容量
      */
     protected UnpooledDirectByteBuf(ByteBufAllocator alloc, ByteBuffer initialBuffer, int maxCapacity) {
         this(alloc, initialBuffer, maxCapacity, false, true);
@@ -71,6 +73,7 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     }
 
     void setByteBuffer(ByteBuffer buffer, boolean tryFree) {
+        //释放buffer
         if (tryFree) {
             ByteBuffer oldBuffer = this.buffer;
             if (oldBuffer != null) {
@@ -159,8 +162,10 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     public ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
         checkDstIndex(index, length, dstIndex, dst.capacity());
         if (dst.hasArray()) {
+            //用array数组实现的
             getBytes(index, dst.array(), dstIndex, length);
         } else {
+            //用DirectBuffer实现的
             for (ByteBuffer bb : dst.nioBuffers(dstIndex, length)) {
                 int bbLen = bb.remaining();
                 getBytes(index, bb);
@@ -173,7 +178,6 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     public ByteBuf getBytes(int index, ByteBuffer dst) {
         checkIndex(index, dst.remaining());
-
         ByteBuffer tmpBuf = buffer.duplicate();
         tmpBuf.clear().position(index).limit(index + dst.remaining());
         dst.put(tmpBuf);
@@ -183,9 +187,10 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     @Override
     public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
         checkDstIndex(index, length, dstIndex, dst.length);
-
+        //复制一份，重置各种index
         ByteBuffer tmpBuf = buffer.duplicate();
         tmpBuf.clear().position(index).limit(index + length);
+        //复制到dest
         tmpBuf.get(dst, dstIndex, length);
         return this;
     }
@@ -310,10 +315,16 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
             bytesToCopy = newCapacity;
         }
         ByteBuffer oldBuffer = buffer;
+        //创建新的ByteBuffer
         ByteBuffer newBuffer = allocateDirect(newCapacity);
+        //设置position和limit
         oldBuffer.position(0).limit(bytesToCopy);
         newBuffer.position(0).limit(bytesToCopy);
+
+        //复制到dest并且重置各种index
         newBuffer.put(oldBuffer).clear();
+
+        //替换
         setByteBuffer(newBuffer, true);
         return this;
     }

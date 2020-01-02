@@ -357,11 +357,6 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
-    public int readBytes(FileChannel out, long position, int length) throws IOException {
-        throw new IndexOutOfBoundsException();
-    }
-
-    @Override
     public ByteBuf writeBoolean(boolean value) {
         throw new IndexOutOfBoundsException();
     }

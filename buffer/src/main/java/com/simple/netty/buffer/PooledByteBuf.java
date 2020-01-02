@@ -18,9 +18,6 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     PoolChunk<T> chunk;
 
-    /**
-     * bitmap
-     */
     long handle;
 
     T memory;
@@ -73,12 +70,16 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     /**
-     * Method must be called before reuse this {@link PooledByteBufAllocator}
+     * 被回收之后，重新使用之前必须调用这个方法，重置一些变量
      */
     final void reuse(int maxCapacity) {
+        //设置容量
         maxCapacity(maxCapacity);
+        //重置引用计数
         resetRefCnt();
+        //重置读写索引
         setIndex0(0, 0);
+        //重置mark索引
         discardMarks();
     }
 
@@ -88,11 +89,36 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
-    public ByteBuf capacity(int newCapacity) {
+    public final ByteBuf capacity(int newCapacity) {
         if (newCapacity == length) {
-
+            ensureAccessible();
+            return this;
         }
-        return null;
+        checkNewCapacity(newCapacity);
+        if (!chunk.unpooled) {
+            // If the request capacity does not require reallocation, just update the length of the memory.
+            if (newCapacity > length) {
+                if (newCapacity <= maxLength) {
+                    length = newCapacity;
+                    return this;
+                }
+            } else if (newCapacity > maxLength >>> 1 &&
+                (maxLength > 512 || newCapacity > maxLength - 16)) {
+                // here newCapacity < length
+                length = newCapacity;
+                trimIndicesToCapacity(newCapacity);
+                return this;
+            }
+        }
+
+        // Reallocation required.
+        chunk.arena.reallocate(this, newCapacity, true);
+        return this;
+    }
+
+    @Override
+    public int maxFastWritableBytes() {
+        return Math.min(maxLength, maxCapacity()) - writerIndex;
     }
 
     @Override
@@ -114,14 +140,6 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     public final int readBytes(GatheringByteChannel out, int length) throws IOException {
         checkReadableBytes(length);
         int readBytes = out.write(internalNioBuffer(readerIndex, length));
-        readerIndex += readBytes;
-        return readBytes;
-    }
-
-    @Override
-    public final int readBytes(FileChannel out, long position, int length) throws IOException {
-        checkReadableBytes(length);
-        int readBytes = out.write(internalNioBuffer(readerIndex, length), position);
         readerIndex += readBytes;
         return readBytes;
     }
@@ -155,6 +173,10 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     public final ByteBuffer[] nioBuffers(int index, int length) {
         return new ByteBuffer[]{nioBuffer(index, length)};
+    }
+
+    protected final ByteBuffer internalNioBuffer() {
+        return newInternalNioBuffer(memory);
     }
 
     @Override

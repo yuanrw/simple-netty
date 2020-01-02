@@ -142,7 +142,7 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
             return threshold;
         }
 
-        // 大于threshold，不翻倍，只是增加threshold
+        // 大于threshold，不翻倍，只是增加threshold的倍数
         if (minNewCapacity > threshold) {
             int newCapacity = minNewCapacity / threshold * threshold;
             if (newCapacity > maxCapacity - threshold) {
@@ -159,7 +159,7 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
             newCapacity <<= 1;
         }
 
-        //不能超过threshold
+        //不能超过maxCapacity
         return Math.min(newCapacity, maxCapacity);
     }
 }

@@ -6,10 +6,10 @@ package com.simple.netty.buffer;
  *
  * @author yrw
  */
-public class PooledDirectByteBufTest extends AbstractByteBufTest {
+public class PooledDirectByteBufTest extends AbstractPooledByteBufTest {
 
     @Override
-    protected ByteBuf newBuffer(int length, int maxCapacity) {
+    protected ByteBuf alloc(int length, int maxCapacity) {
         return PooledByteBufAllocator.DEFAULT.directBuffer(length, maxCapacity);
     }
 }

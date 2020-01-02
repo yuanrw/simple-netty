@@ -175,6 +175,35 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         return buf;
     }
 
+    void reallocate(PooledByteBuf<T> buf, int newCapacity, boolean freeOldMemory) {
+        assert newCapacity >= 0 && newCapacity <= buf.maxCapacity();
+
+        int oldCapacity = buf.length;
+        if (oldCapacity == newCapacity) {
+            return;
+        }
+
+        PoolChunk<T> oldChunk = buf.chunk;
+        long oldHandle = buf.handle;
+        T oldMemory = buf.memory;
+        int oldOffset = buf.offset;
+        int oldMaxLength = buf.maxLength;
+
+        // This does not touch buf's reader/writer indices
+        allocate(parent.threadCache(), buf, newCapacity);
+        int bytesToCopy;
+        if (newCapacity > oldCapacity) {
+            bytesToCopy = oldCapacity;
+        } else {
+            buf.trimIndicesToCapacity(newCapacity);
+            bytesToCopy = newCapacity;
+        }
+        memoryCopy(oldMemory, oldOffset, buf, bytesToCopy);
+        if (freeOldMemory) {
+            free(oldChunk, oldHandle, oldMaxLength, buf.cache);
+        }
+    }
+
     static int tinyIdx(int normCapacity) {
         //在tiny维护的链中找到合适自己位置的下标, 除以16，就是下标了
         return normCapacity >>> 4;
@@ -562,6 +591,7 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
     protected abstract PoolChunk<T> newChunk(int pageSize, int maxOrder, int chunkSize);
     protected abstract PoolChunk<T> newUnpooledChunk(int capacity);
     protected abstract PooledByteBuf<T> newByteBuf(int maxCapacity);
+    protected abstract void memoryCopy(T src, int srcOffset, PooledByteBuf<T> dst, int length);
     protected abstract void destroyChunk(PoolChunk<T> chunk);
 
     @Override
@@ -647,6 +677,15 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
             return PooledHeapByteBuf.newInstance(maxCapacity);
         }
 
+        @Override
+        protected void memoryCopy(byte[] src, int srcOffset, PooledByteBuf<byte[]> dst, int length) {
+            if (length == 0) {
+                return;
+            }
+
+            System.arraycopy(src, srcOffset, dst.memory, dst.offset, length);
+        }
+
     }
 
     /**
@@ -715,6 +754,26 @@ public abstract class PoolArena<T> implements PoolArenaMetric {
         @Override
         protected PooledByteBuf<ByteBuffer> newByteBuf(int maxCapacity) {
             return PooledDirectByteBuf.newInstance(maxCapacity);
+        }
+
+        @Override
+        protected void memoryCopy(ByteBuffer src, int srcOffset, PooledByteBuf<ByteBuffer> dstBuf, int length) {
+            if (length == 0) {
+                return;
+            }
+
+            if (HAS_UNSAFE) {
+                PlatformDependent.copyMemory(
+                    PlatformDependent.directBufferAddress(src) + srcOffset,
+                    PlatformDependent.directBufferAddress(dstBuf.memory) + dstBuf.offset, length);
+            } else {
+                // We must duplicate the NIO buffers because they may be accessed by other Netty buffers.
+                src = src.duplicate();
+                ByteBuffer dst = dstBuf.internalNioBuffer();
+                src.position(srcOffset).limit(srcOffset + length);
+                dst.position(dstBuf.offset);
+                dst.put(src);
+            }
         }
     }
 }

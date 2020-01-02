@@ -6,10 +6,10 @@ package com.simple.netty.buffer;
  *
  * @author yrw
  */
-public class PooledHeapByteBufTest extends AbstractByteBufTest {
+public class PooledHeapByteBufTest extends AbstractPooledByteBufTest {
 
     @Override
-    protected ByteBuf newBuffer(int length, int maxCapacity) {
+    protected ByteBuf alloc(int length, int maxCapacity) {
         return PooledByteBufAllocator.DEFAULT.heapBuffer(length, maxCapacity);
     }
 }

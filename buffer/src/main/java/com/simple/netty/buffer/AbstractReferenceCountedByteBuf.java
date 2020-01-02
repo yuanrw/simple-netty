@@ -1,7 +1,6 @@
 package com.simple.netty.buffer;
 
 import com.simple.netty.common.internal.IllegalReferenceCountException;
-import com.simple.netty.common.internal.PlatformDependent;
 import com.simple.netty.common.internal.ReferenceCounted;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -19,15 +18,13 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     /**
-     * 计数域的偏移地址
-     */
-    private static final long REFCNT_FIELD_OFFSET = getUnsafeOffset();
-
-    /**
      * volatile可以保证属性可见，但不能保证原子性
      */
     private volatile int refCnt = 1;
 
+    /**
+     * 更新器，保证原子性，所有ByteBuf共享
+     */
     private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> UPDATER =
         AtomicIntegerFieldUpdater.newUpdater(AbstractReferenceCountedByteBuf.class, "refCnt");
 
@@ -52,20 +49,31 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     @Override
     public ReferenceCounted retain() {
-        UPDATER.getAndAdd(this, 1);
-        return this;
+        return retain0(this, 1);
     }
 
     @Override
     public ReferenceCounted retain(int increment) {
-        UPDATER.getAndAdd(this, increment);
-        return this;
+        return retain0(this, increment);
+    }
+
+    private AbstractReferenceCountedByteBuf retain0(AbstractReferenceCountedByteBuf instance, final int increment) {
+        //内部通过cas实现，修改成功才会返回
+        int oldRef = UPDATER.getAndAdd(instance, increment);
+        //旧值不合法
+        if (oldRef == 0 || oldRef == Integer.MAX_VALUE) {
+            throw new IllegalReferenceCountException(oldRef, 1);
+        }
+        return instance;
     }
 
     @Override
     public boolean release() {
+        //release关心旧值，因为决定了是否释放对象。retain只要旧值合法就行
         int cnt = nonVolatileRawCnt();
-        return cnt == 1 ? tryFinalRelease0(1) : nonFinalRelease0(1, cnt);
+        //引用的最小值是1，释放时等于1代表
+        return cnt == 1 ? tryFinalRelease0(1) || retryRelease0(1)
+            : nonFinalRelease0(1, cnt);
     }
 
     @Override
@@ -88,6 +96,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     }
 
     private boolean retryRelease0(int decrement) {
+        //自旋保证成功
         for (; ; ) {
             int cnt = UPDATER.get(this);
             if (decrement == cnt) {
@@ -106,8 +115,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     }
 
     private int nonVolatileRawCnt() {
-        return REFCNT_FIELD_OFFSET != -1 ? PlatformDependent.getInt(this, REFCNT_FIELD_OFFSET)
-            : UPDATER.get(this);
+        return UPDATER.get(this);
     }
 
     private boolean handleRelease(boolean result) {
@@ -124,16 +132,5 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     protected final void resetRefCnt() {
         UPDATER.set(this, 1);
-    }
-
-    private static long getUnsafeOffset() {
-        try {
-            if (PlatformDependent.hasUnsafe()) {
-                return PlatformDependent.objectFieldOffset(AbstractReferenceCountedByteBuf.class.getDeclaredField("refCnt"));
-            }
-        } catch (Throwable ignore) {
-            // fall-back
-        }
-        return -1;
     }
 }

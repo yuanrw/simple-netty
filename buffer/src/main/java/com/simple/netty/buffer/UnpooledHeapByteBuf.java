@@ -8,6 +8,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 
 /**
+ * 原理简单，容易管理，推荐使用
  * Date: 2019-12-14
  * Time: 12:40
  *
@@ -15,7 +16,13 @@ import java.nio.channels.GatheringByteChannel;
  */
 public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
 
+    /**
+     * 用于分配内存
+     */
     private final ByteBufAllocator alloc;
+    /**
+     * 缓冲区，位操作性能好
+     */
     byte[] array;
 
     public UnpooledHeapByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
@@ -49,16 +56,22 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
             return this;
         }
 
+        //要copy的长度
         int bytesToCopy;
         if (newCapacity > oldCapacity) {
             bytesToCopy = oldCapacity;
         } else {
+            //截取
             trimIndicesToCapacity(newCapacity);
             bytesToCopy = newCapacity;
         }
+        //创建一个新数组
         byte[] newArray = allocateArray(newCapacity);
+        //copy
         System.arraycopy(oldArray, 0, newArray, 0, bytesToCopy);
+        //替换
         setArray(newArray);
+        //释放旧数组
         freeArray(oldArray);
         return this;
     }

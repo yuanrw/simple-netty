@@ -2,7 +2,8 @@ package com.simple.netty.buffer;
 
 /**
  * 用于管理page，申请比page还小的内存的时候使用
- * bitmap用来表示
+ * 用long的每一位来表示每一个byte的使用情况，0表示未使用，1表示使用
+ * 一个long可以表示64个byte
  * Date: 2019-12-18
  * Time: 20:21
  *

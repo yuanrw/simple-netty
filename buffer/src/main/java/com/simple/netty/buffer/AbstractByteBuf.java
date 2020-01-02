@@ -4,7 +4,6 @@ import com.simple.netty.common.internal.IllegalReferenceCountException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 
 import static com.simple.netty.common.internal.ObjectUtil.checkPositiveOrZero;
@@ -348,7 +347,9 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf readBytes(byte[] dst, int dstIndex, int length) {
+        //检查writeIndex-readIndex >= length
         checkReadableBytes(length);
+        //由各自子类实现
         getBytes(readerIndex, dst, dstIndex, length);
         readerIndex += length;
         return this;
@@ -368,15 +369,6 @@ public abstract class AbstractByteBuf extends ByteBuf {
         throws IOException {
         checkReadableBytes(length);
         int readBytes = getBytes(readerIndex, out, length);
-        readerIndex += readBytes;
-        return readBytes;
-    }
-
-    @Override
-    public int readBytes(FileChannel out, long position, int length)
-        throws IOException {
-        checkReadableBytes(length);
-        int readBytes = getBytes(readerIndex, out, position, length);
         readerIndex += readBytes;
         return readBytes;
     }
@@ -582,9 +574,10 @@ public abstract class AbstractByteBuf extends ByteBuf {
                 writerIndex, minWritableBytes, maxCapacity, this));
         }
 
-        // capacity是2的次幂
-        final int fastWritable = writableBytes();
+        // 可写字节数小于需要写入的字节数
+        final int fastWritable = maxFastWritableBytes();
         int newCapacity = fastWritable >= minWritableBytes ? writerIndex + fastWritable
+            //计算新容量，需要2的次幂
             : alloc().calculateNewCapacity(targetCapacity, maxCapacity);
 
         // 扩容

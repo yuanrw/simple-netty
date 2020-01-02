@@ -41,6 +41,14 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract int writableBytes();
 
+    /**
+     * 不需要内部重新分配或者copy数据的最大容量
+     */
+    public int maxFastWritableBytes() {
+        return writableBytes();
+    }
+
+
     public abstract boolean isReadable();
 
     public abstract boolean isReadable(int size);
@@ -156,8 +164,6 @@ public abstract class ByteBuf implements ReferenceCounted {
     public abstract ByteBuf readBytes(ByteBuffer dst);
 
     public abstract int readBytes(GatheringByteChannel out, int length) throws IOException;
-
-    public abstract int readBytes(FileChannel out, long position, int length) throws IOException;
 
 
     public abstract ByteBuf writeBoolean(boolean value);

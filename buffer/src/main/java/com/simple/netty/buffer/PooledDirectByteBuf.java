@@ -6,7 +6,8 @@ import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 /**
- * 池化的对外ByteBuf
+ * 池化的堆外ByteBuf
+ * 和Unpooled的区别是内存申请和销毁策略不同
  * Date: 2019-12-14
  * Time: 12:38
  *
@@ -14,9 +15,18 @@ import java.util.function.Consumer;
  */
 public class PooledDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
+    /**
+     * 对象池
+     */
     private static final ObjectPool<PooledDirectByteBuf> RECYCLER = new ObjectPool<>(
         handler -> new PooledDirectByteBuf(handler, 0));
 
+    /**
+     * 由于采用了对象池，不能直接new，要从对象池里取
+     *
+     * @param maxCapacity
+     * @return
+     */
     static PooledDirectByteBuf newInstance(int maxCapacity) {
         PooledDirectByteBuf buf = RECYCLER.get();
         buf.reuse(maxCapacity);
