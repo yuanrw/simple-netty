@@ -27,4 +27,12 @@ public class StringUtil {
      */
     private static final int CSV_NUMBER_ESCAPE_CHARACTERS = 2 + 5;
     private static final char PACKAGE_SEPARATOR_CHAR = '.';
+
+    public static String simpleClassName(Object o) {
+        if (o == null) {
+            return "null_object";
+        } else {
+            return simpleClassName(o.getClass());
+        }
+    }
 }

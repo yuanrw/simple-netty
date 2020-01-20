@@ -4,8 +4,10 @@ import com.simple.netty.common.internal.EmptyArrays;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 
 /**
  * 原理简单，容易管理，推荐使用
@@ -112,6 +114,11 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
     public ByteBuffer internalNioBuffer(int index, int length) {
         checkIndex(index, length);
         return (ByteBuffer) ByteBuffer.wrap(array).clear().position(index).limit(index + length);
+    }
+
+    @Override
+    public int nioBufferCount() {
+        return 1;
     }
 
     @Override
@@ -257,6 +264,18 @@ public class UnpooledHeapByteBuf extends AbstractReferenceCountedByteBuf {
         ensureAccessible();
         src.get(array, index, src.remaining());
         return this;
+    }
+
+    @Override
+    public int setBytes(int index, ScatteringByteChannel in, int length) throws IOException {
+        ensureAccessible();
+        try {
+            //把netty的ByteBuf转换成JDK的ByteBuffer，清空指针
+            //然后把Channel里的码流读取到ByteBuffer中
+            return in.read((ByteBuffer) ByteBuffer.wrap(array).clear().position(index).limit(index + length));
+        } catch (ClosedChannelException ignored) {
+            return -1;
+        }
     }
 
     @Override

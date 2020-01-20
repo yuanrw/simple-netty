@@ -5,8 +5,10 @@ import com.simple.netty.common.internal.PlatformDependent;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 
 /**
  * Date: 2019-12-14
@@ -70,6 +72,11 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
     public ByteBuffer internalNioBuffer(int index, int length) {
         checkIndex(index, length);
         return (ByteBuffer) buffer.duplicate().clear().position(index).limit(index + length);
+    }
+
+    @Override
+    public int nioBufferCount() {
+        return 1;
     }
 
     void setByteBuffer(ByteBuffer buffer, boolean tryFree) {
@@ -293,6 +300,18 @@ public class UnpooledDirectByteBuf extends AbstractReferenceCountedByteBuf {
         checkSrcIndex(index, length, srcIndex, src.capacity());
         src.getBytes(srcIndex, this, index, length);
         return this;
+    }
+
+    @Override
+    public int setBytes(int index, ScatteringByteChannel in, int length) throws IOException {
+        ensureAccessible();
+        ByteBuffer tmpBuf = buffer.duplicate();
+        tmpBuf.clear().position(index).limit(index + length);
+        try {
+            return in.read(tmpBuf);
+        } catch (ClosedChannelException ignored) {
+            return -1;
+        }
     }
 
     @Override

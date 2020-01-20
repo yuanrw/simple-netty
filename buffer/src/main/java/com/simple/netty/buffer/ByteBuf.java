@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 
 /**
  * Date: 2019-12-14
@@ -126,6 +127,8 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length);
 
+    public abstract int setBytes(int index, ScatteringByteChannel in, int length) throws IOException;
+
 
     public abstract boolean hasArray();
 
@@ -195,12 +198,21 @@ public abstract class ByteBuf implements ReferenceCounted {
 
     public abstract ByteBuf writeBytes(ByteBuf src, int srcIndex, int length);
 
+    public abstract int writeBytes(ScatteringByteChannel in, int length) throws IOException;
+
 
     public abstract ByteBuffer[] nioBuffers(int index, int length);
 
     public abstract ByteBuffer nioBuffer(int index, int length);
 
     public abstract ByteBuffer internalNioBuffer(int index, int length);
+
+    /**
+     * 返回ByteBuf里包含的ByteBuffer数量
+     *
+     * @return
+     */
+    public abstract int nioBufferCount();
 
     boolean isAccessible() {
         return refCnt() != 0;

@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.ReadOnlyBufferException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 
 import static com.simple.netty.common.internal.ObjectUtil.checkPositiveOrZero;
 
@@ -267,6 +268,12 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public int setBytes(int index, ScatteringByteChannel in, int length) {
+        checkIndex(index, length);
+        return 0;
+    }
+
+    @Override
     public boolean hasArray() {
         return false;
     }
@@ -427,6 +434,12 @@ public class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
+    public int writeBytes(ScatteringByteChannel in, int length) throws IOException {
+        checkLength(length);
+        return 0;
+    }
+
+    @Override
     public ByteBuffer[] nioBuffers(int index, int length) {
         return new ByteBuffer[]{EMPTY_BYTE_BUFFER};
     }
@@ -444,6 +457,11 @@ public class EmptyByteBuf extends ByteBuf {
     @Override
     public ByteBuffer internalNioBuffer(int index, int length) {
         return EMPTY_BYTE_BUFFER;
+    }
+
+    @Override
+    public int nioBufferCount() {
+        return 1;
     }
 
     @Override
@@ -484,6 +502,14 @@ public class EmptyByteBuf extends ByteBuf {
     private ByteBuf checkIndex(int index, int length) {
         checkPositiveOrZero(length, "length");
         if (index != 0 || length != 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return this;
+    }
+
+    private ByteBuf checkLength(int length) {
+        checkPositiveOrZero(length, "length");
+        if (length != 0) {
             throw new IndexOutOfBoundsException();
         }
         return this;

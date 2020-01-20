@@ -2,8 +2,10 @@ package com.simple.netty.buffer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 import java.util.function.Consumer;
 
 /**
@@ -145,6 +147,15 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     @Override
+    public final int setBytes(int index, ScatteringByteChannel in, int length) throws IOException {
+        try {
+            return in.read(internalNioBuffer(index, length));
+        } catch (ClosedChannelException ignored) {
+            return -1;
+        }
+    }
+
+    @Override
     protected final void deallocate() {
         if (handle >= 0) {
             final long handle = this.handle;
@@ -190,6 +201,11 @@ public abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         ByteBuffer buffer = newInternalNioBuffer(memory);
         buffer.limit(index + length).position(index);
         return buffer;
+    }
+
+    @Override
+    public final int nioBufferCount() {
+        return 1;
     }
 
     protected final int idx(int index) {

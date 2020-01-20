@@ -1076,30 +1076,24 @@ public abstract class AbstractByteBufTest {
             final ByteBuf buffer = newBuffer(4);
             assertEquals(1, buffer.refCnt());
             final AtomicInteger cnt = new AtomicInteger(Integer.MAX_VALUE);
-            Thread t1 = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    boolean released;
-                    if (parameter) {
-                        released = buffer.release(buffer.refCnt());
-                    } else {
-                        released = buffer.release();
-                    }
-                    assertTrue(released);
-                    Thread t2 = new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            cnt.set(buffer.refCnt());
-                            latch.countDown();
-                        }
-                    });
-                    t2.start();
-                    try {
-                        // Keep Thread alive a bit so the ThreadLocal caches are not freed
-                        innerLatch.await();
-                    } catch (InterruptedException ignore) {
-                        // ignore
-                    }
+            Thread t1 = new Thread(() -> {
+                boolean released;
+                if (parameter) {
+                    released = buffer.release(buffer.refCnt());
+                } else {
+                    released = buffer.release();
+                }
+                assertTrue(released);
+                Thread t2 = new Thread(() -> {
+                    cnt.set(buffer.refCnt());
+                    latch.countDown();
+                });
+                t2.start();
+                try {
+                    // Keep Thread alive a bit so the ThreadLocal caches are not freed
+                    innerLatch.await();
+                } catch (InterruptedException ignore) {
+                    // ignore
                 }
             });
             t1.start();

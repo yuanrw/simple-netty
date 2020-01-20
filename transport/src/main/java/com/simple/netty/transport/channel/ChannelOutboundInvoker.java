@@ -3,6 +3,7 @@ package com.simple.netty.transport.channel;
 import java.net.SocketAddress;
 
 /**
+ * Outbound代表由用户线程发起的操作
  * Date: 2019-12-31
  * Time: 18:31
  *

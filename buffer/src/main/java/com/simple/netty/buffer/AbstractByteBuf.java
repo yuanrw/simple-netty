@@ -5,6 +5,7 @@ import com.simple.netty.common.internal.IllegalReferenceCountException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 
 import static com.simple.netty.common.internal.ObjectUtil.checkPositiveOrZero;
 
@@ -454,6 +455,16 @@ public abstract class AbstractByteBuf extends ByteBuf {
         setBytes(writerIndex, src, srcIndex, length);
         writerIndex += length;
         return this;
+    }
+
+    @Override
+    public int writeBytes(ScatteringByteChannel in, int length) throws IOException {
+        ensureWritable(length);
+        int writtenBytes = setBytes(writerIndex, in, length);
+        if (writtenBytes > 0) {
+            writerIndex += writtenBytes;
+        }
+        return writtenBytes;
     }
 
     @Override

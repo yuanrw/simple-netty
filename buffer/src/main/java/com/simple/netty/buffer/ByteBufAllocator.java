@@ -8,6 +8,8 @@ package com.simple.netty.buffer;
  */
 public interface ByteBufAllocator {
 
+    ByteBufAllocator DEFAULT = PooledByteBufAllocator.DEFAULT;
+
     ByteBuf buffer();
 
     ByteBuf buffer(int initialCapacity);
