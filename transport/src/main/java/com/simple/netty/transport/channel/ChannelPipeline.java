@@ -16,9 +16,13 @@ import java.util.Map;
 public interface ChannelPipeline extends
     ChannelInboundInvoker, ChannelOutboundInvoker, Iterable<Map.Entry<String, ChannelHandler>> {
 
+    ChannelPipeline addFirst(ChannelHandler... handlers);
+
     ChannelPipeline addFirst(String name, ChannelHandler handler);
 
     ChannelPipeline addFirst(EventExecutorGroup group, String name, ChannelHandler handler);
+
+    ChannelPipeline addLast(ChannelHandler... handlers);
 
     ChannelPipeline addLast(String name, ChannelHandler handler);
 

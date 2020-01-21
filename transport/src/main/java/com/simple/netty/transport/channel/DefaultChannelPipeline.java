@@ -70,6 +70,28 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     @Override
+    public ChannelPipeline addFirst(ChannelHandler... handlers) {
+        ObjectUtil.checkNotNull(handlers, "handlers");
+        if (handlers.length == 0 || handlers[0] == null) {
+            return this;
+        }
+
+        int size;
+        for (size = 1; size < handlers.length; size++) {
+            if (handlers[size] == null) {
+                break;
+            }
+        }
+
+        for (int i = size - 1; i >= 0; i--) {
+            ChannelHandler h = handlers[i];
+            addFirst(null, null, h);
+        }
+
+        return this;
+    }
+
+    @Override
     public ChannelPipeline addFirst(String name, ChannelHandler handler) {
         return addFirst(null, name, handler);
     }
@@ -102,6 +124,20 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         //直接调用ChannelHandler.handlerAdded(...)
         callHandlerAdded0(newCtx);
+        return this;
+    }
+
+    @Override
+    public ChannelPipeline addLast(ChannelHandler... handlers) {
+        ObjectUtil.checkNotNull(handlers, "handlers");
+
+        for (ChannelHandler h : handlers) {
+            if (h == null) {
+                break;
+            }
+            addLast(null, null, h);
+        }
+
         return this;
     }
 

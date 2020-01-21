@@ -54,9 +54,9 @@ public abstract class SingleThreadEventExecutor extends AbstractEventExecutor {
     private final int maxPendingTasks;
 
     /**
-     * 终止future todo:
+     * 终止future
      */
-    private final Promise<?> terminationFuture = new DefaultPromise<Void>(this);
+    private final Promise<?> terminationFuture = new DefaultPromise<Void>(GlobalEventExecutor.INSTANCE);
 
     protected SingleThreadEventExecutor(EventExecutorGroup parent, Executor executor) {
         super(parent);

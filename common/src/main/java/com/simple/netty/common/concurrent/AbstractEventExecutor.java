@@ -35,6 +35,10 @@ public abstract class AbstractEventExecutor extends AbstractExecutorService impl
      */
     private final Collection<EventExecutor> selfCollection = Collections.singleton(this);
 
+    protected AbstractEventExecutor() {
+        this(null);
+    }
+
     protected AbstractEventExecutor(EventExecutorGroup parent) {
         this.parent = parent;
     }

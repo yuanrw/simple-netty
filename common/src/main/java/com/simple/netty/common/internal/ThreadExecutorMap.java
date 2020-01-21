@@ -31,33 +31,18 @@ public final class ThreadExecutorMap {
     }
 
     /**
-     * Returns the current {@link EventExecutor} that uses the {@link Thread}, or {@code null} if none / unknown.
-     */
-    public static EventExecutor currentExecutor() {
-        return mappings.get();
-    }
-
-    /**
      * Set the current {@link EventExecutor} that is used by the {@link Thread}.
      */
     private static void setCurrentEventExecutor(EventExecutor executor) {
         mappings.set(executor);
     }
 
-    /**
-     * Decorate the given {@link Executor} and ensure {@link #currentExecutor()} will return {@code eventExecutor}
-     * when called from within the {@link Runnable} during execution.
-     */
     public static Executor apply(final Executor executor, final EventExecutor eventExecutor) {
         ObjectUtil.checkNotNull(executor, "executor");
         ObjectUtil.checkNotNull(eventExecutor, "eventExecutor");
         return command -> executor.execute(apply(command, eventExecutor));
     }
 
-    /**
-     * Decorate the given {@link Runnable} and ensure {@link #currentExecutor()} will return {@code eventExecutor}
-     * when called from within the {@link Runnable} during execution.
-     */
     public static Runnable apply(final Runnable command, final EventExecutor eventExecutor) {
         ObjectUtil.checkNotNull(command, "command");
         ObjectUtil.checkNotNull(eventExecutor, "eventExecutor");
@@ -71,10 +56,6 @@ public final class ThreadExecutorMap {
         };
     }
 
-    /**
-     * Decorate the given {@link ThreadFactory} and ensure {@link #currentExecutor()} will return {@code eventExecutor}
-     * when called from within the {@link Runnable} during execution.
-     */
     public static ThreadFactory apply(final ThreadFactory threadFactory, final EventExecutor eventExecutor) {
         ObjectUtil.checkNotNull(threadFactory, "command");
         ObjectUtil.checkNotNull(eventExecutor, "eventExecutor");

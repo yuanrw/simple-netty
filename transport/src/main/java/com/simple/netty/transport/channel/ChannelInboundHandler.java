@@ -1,7 +1,5 @@
 package com.simple.netty.transport.channel;
 
-import com.simple.netty.buffer.ByteBuf;
-
 /**
  * Date: 2020-01-03
  * Time: 15:34
@@ -18,7 +16,7 @@ public interface ChannelInboundHandler extends ChannelHandler {
 
     void channelInactive(ChannelHandlerContext ctx) throws Exception;
 
-    void channelRead(ChannelHandlerContext ctx, ByteBuf msg) throws Exception;
+    void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception;
 
     void channelReadComplete(ChannelHandlerContext ctx) throws Exception;
 
