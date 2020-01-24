@@ -8,11 +8,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
-import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 线程的基本实现
+ * nio线程的骨架实现
  * Date: 2020-01-05
  * Time: 10:53
  *
@@ -22,16 +22,19 @@ public abstract class AbstractEventExecutor extends AbstractExecutorService impl
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractEventExecutor.class);
 
-    static final long DEFAULT_SHUTDOWN_QUIET_PERIOD = 2;
-    static final long DEFAULT_SHUTDOWN_TIMEOUT = 15;
+    /**
+     * 一些默认值
+     */
+    private static final long DEFAULT_SHUTDOWN_QUIET_PERIOD = 2;
+    private static final long DEFAULT_SHUTDOWN_TIMEOUT = 15;
 
     /**
-     * 他所在的group
+     * 他所在的线程池
      */
     private final EventExecutorGroup parent;
 
     /**
-     * 只有一个线程
+     * 线程集合（只有一个）
      */
     private final Collection<EventExecutor> selfCollection = Collections.singleton(this);
 
@@ -63,24 +66,11 @@ public abstract class AbstractEventExecutor extends AbstractExecutorService impl
         return selfCollection.iterator();
     }
 
+    //提交交给jdk来做
+
     @Override
     public Future<?> shutdownGracefully() {
         return shutdownGracefully(DEFAULT_SHUTDOWN_QUIET_PERIOD, DEFAULT_SHUTDOWN_TIMEOUT, TimeUnit.SECONDS);
-    }
-
-    @Override
-    public <V> Promise<V> newPromise() {
-        return new DefaultPromise<>(this);
-    }
-
-    @Override
-    public <V> Future<V> newSucceededFuture(V result) {
-        return new SucceededFuture<>(this, result);
-    }
-
-    @Override
-    public <V> Future<V> newFailedFuture(Throwable cause) {
-        return new FailedFuture<>(this, cause);
     }
 
     @Override
@@ -98,18 +88,31 @@ public abstract class AbstractEventExecutor extends AbstractExecutorService impl
         return (Future<T>) super.submit(task);
     }
 
+    //默认不支持定时任务，子类可以实现
+
     @Override
-    protected final <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-        return new PromiseTask<>(this, runnable, value);
+    public ScheduledFuture<?> schedule(Runnable command, long delay,
+                                       TimeUnit unit) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    protected final <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-        return new PromiseTask<>(this, callable);
+    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+        throw new UnsupportedOperationException();
     }
 
     /**
-     * 执行任务（阻塞的）
+     * 安全地执行任务（阻塞的），不会抛异常，有异常打日志
      *
      * @param task
      */

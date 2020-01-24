@@ -29,6 +29,8 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     private static final AtomicReferenceFieldUpdater<DefaultPromise, Object> RESULT_UPDATER =
         AtomicReferenceFieldUpdater.newUpdater(DefaultPromise.class, Object.class, "result");
 
+    private static final CancellationException CANCELLATION_CAUSE_HOLDER = new CancellationException();
+
     private static final Object SUCCESS = new Object();
 
     private volatile Object result;
@@ -94,7 +96,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     @Override
     public boolean isSuccess() {
         Object result = this.result;
-        return result != null && !(result instanceof CauseHolder);
+        return result != null && !(result instanceof RuntimeException);
     }
 
     @Override
@@ -103,10 +105,10 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private Throwable cause0(Object result) {
-        if (!(result instanceof CauseHolder)) {
+        if (!(result instanceof RuntimeException)) {
             return null;
         }
-        return ((CauseHolder) result).cause;
+        return ((RuntimeException) result).getCause();
     }
 
     @Override
@@ -210,7 +212,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     @Override
     public V getNow() {
         Object result = this.result;
-        if (result instanceof CauseHolder || result == SUCCESS) {
+        if (result instanceof RuntimeException || result == SUCCESS) {
             return null;
         }
         return (V) result;
@@ -272,6 +274,22 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         return this;
     }
 
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        if (RESULT_UPDATER.compareAndSet(this, null, CANCELLATION_CAUSE_HOLDER)) {
+            if (checkNotifyWaiters()) {
+                notifyListeners();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return isCancelled0(result);
+    }
+
     /**
      * Get the executor used to notify listeners when this promise is complete.
      * <p>
@@ -288,7 +306,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     protected void checkDeadLock() {
         EventExecutor e = executor();
         if (e != null && e.inEventLoop()) {
-            throw new RuntimeException(toString());
+            throw new CancellationException(toString());
         }
     }
 
@@ -426,7 +444,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private boolean setFailure0(Throwable cause) {
-        return setValue0(new CauseHolder(checkNotNull(cause, "cause")));
+        return setValue0(new RuntimeException(checkNotNull(cause, "cause")));
     }
 
     private boolean setValue0(Object objResult) {
@@ -524,16 +542,12 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         }
     }
 
-    private static boolean isDone0(Object result) {
-        return result != null;
+    private static boolean isCancelled0(Object result) {
+        return result instanceof RuntimeException && ((RuntimeException) result).getCause() instanceof CancellationException;
     }
 
-    private static final class CauseHolder {
-        final Throwable cause;
-
-        CauseHolder(Throwable cause) {
-            this.cause = cause;
-        }
+    private static boolean isDone0(Object result) {
+        return result != null;
     }
 
     private static void safeExecute(EventExecutor executor, Runnable task) {

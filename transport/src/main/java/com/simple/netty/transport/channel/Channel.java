@@ -146,7 +146,7 @@ public interface Channel extends ChannelOutboundInvoker, Comparable<Channel> {
         SocketAddress remoteAddress();
 
         /**
-         * 把Channel注册到EventLoop上，注册完成后通知ChannelPromise
+         * 把channel注册到EventLoop上，注册完成后通知ChannelPromise
          */
         void register(EventLoop eventLoop, ChannelPromise promise);
 
@@ -166,17 +166,17 @@ public interface Channel extends ChannelOutboundInvoker, Comparable<Channel> {
         void disconnect(ChannelPromise promise);
 
         /**
-         * 关闭Channel
+         * 关闭channel，会flush掉channel里的数据
          */
         void close(ChannelPromise promise);
 
         /**
-         * 不fire任何事件，直接把Channel关掉
+         * 不fire任何事件，直接把channel关掉
          */
         void closeForcibly();
 
         /**
-         * 在EventLoop里取消注册Channel
+         * 在EventLoop里取消注册channel
          */
         void deregister(ChannelPromise promise);
 
@@ -187,12 +187,12 @@ public interface Channel extends ChannelOutboundInvoker, Comparable<Channel> {
         void beginRead();
 
         /**
-         * 将消息加到发送缓冲区中，并不是真正的写Channel
+         * 将消息加到发送缓冲区中，并不是真正的写channel
          */
         void write(ByteBuf msg, ChannelPromise promise);
 
         /**
-         * 将发送缓冲区中所有的消息全部写入Channel中，发送给通信的对方
+         * 将发送缓冲区中所有的消息全部写入channel中，发送给通信的对方
          */
         void flush();
 

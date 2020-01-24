@@ -1,6 +1,7 @@
 package com.simple.netty.transport.channel;
 
 /**
+ * 全部透传，用户继承这个类方便开发
  * Date: 2020-01-21
  * Time: 16:00
  *

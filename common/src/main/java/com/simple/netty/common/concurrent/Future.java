@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author yrw
  */
+@SuppressWarnings("ClassNameSameAsAncestorName")
 public interface Future<V> extends java.util.concurrent.Future<V> {
 
     boolean isSuccess();

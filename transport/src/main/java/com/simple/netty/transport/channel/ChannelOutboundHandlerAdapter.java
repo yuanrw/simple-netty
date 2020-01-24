@@ -3,6 +3,7 @@ package com.simple.netty.transport.channel;
 import java.net.SocketAddress;
 
 /**
+ * 全部透传，用户继承这个类方便开发
  * Date: 2020-01-21
  * Time: 16:02
  *

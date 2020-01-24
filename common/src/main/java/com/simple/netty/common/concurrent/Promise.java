@@ -34,6 +34,18 @@ public interface Promise<V> extends com.simple.netty.common.concurrent.Future<V>
     boolean tryFailure(Throwable cause);
 
     @Override
+    Promise<V> addListener(GenericFutureListener<? extends Future<? super V>> listener);
+
+    @Override
+    Promise<V> addListeners(GenericFutureListener<? extends Future<? super V>>... listeners);
+
+    @Override
+    Promise<V> removeListener(GenericFutureListener<? extends Future<? super V>> listener);
+
+    @Override
+    Promise<V> removeListeners(GenericFutureListener<? extends Future<? super V>>... listeners);
+
+    @Override
     Promise<V> await() throws InterruptedException;
 
     @Override

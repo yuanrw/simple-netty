@@ -75,6 +75,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                     pipeline.addLast(handler);
                 }
 
+                //增加一个handler
                 ch.eventLoop().execute(() -> pipeline.addLast(
                     new ServerBootstrapAcceptor(currentChildGroup, currentChildHandler)));
             }
@@ -111,11 +112,12 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             child.pipeline().addLast(childHandler);
 
             try {
-                childGroup.register(child).addListener((ChannelFutureListener) future -> {
-                    if (!future.isSuccess()) {
-                        forceClose(child, future.cause());
-                    }
-                });
+                childGroup.register(child)
+                    .addListener((ChannelFutureListener) future -> {
+                        if (!future.isSuccess()) {
+                            forceClose(child, future.cause());
+                        }
+                    });
             } catch (Throwable t) {
                 forceClose(child, t);
             }

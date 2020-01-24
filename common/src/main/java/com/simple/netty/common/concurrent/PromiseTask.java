@@ -33,6 +33,7 @@ public class PromiseTask<V> extends DefaultPromise<V> implements RunnableFuture<
     }
 
     private static final Runnable COMPLETED = new SentinelRunnable("COMPLETED");
+    private static final Runnable CANCELLED = new SentinelRunnable("CANCELLED");
     private static final Runnable FAILED = new SentinelRunnable("FAILED");
 
     private static class SentinelRunnable implements Runnable {
@@ -149,5 +150,15 @@ public class PromiseTask<V> extends DefaultPromise<V> implements RunnableFuture<
 
     protected final boolean trySuccessInternal(V result) {
         return clearTaskAfterCompletion(super.trySuccess(result), COMPLETED);
+    }
+
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        return clearTaskAfterCompletion(super.cancel(mayInterruptIfRunning), CANCELLED);
+    }
+
+    @Override
+    public final boolean isCancelled() {
+        return task == CANCELLED || super.isCancelled();
     }
 }

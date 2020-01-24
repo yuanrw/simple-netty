@@ -26,7 +26,6 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     private volatile ChannelHandler handler;
 
     AbstractBootstrap() {
-        // Disallow extending from a different package.
     }
 
     AbstractBootstrap(AbstractBootstrap<B, C> bootstrap) {
@@ -71,37 +70,27 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     /**
-     * The {@link SocketAddress} which is used to bind the local "end" to.
+     * 本地绑定的 {@link SocketAddress}
      */
     public B localAddress(SocketAddress localAddress) {
         this.localAddress = localAddress;
         return self();
     }
 
-    /**
-     * @see #localAddress(SocketAddress)
-     */
     public B localAddress(int inetPort) {
         return localAddress(new InetSocketAddress(inetPort));
     }
 
-    /**
-     * @see #localAddress(SocketAddress)
-     */
     public B localAddress(String inetHost, int inetPort) {
         return localAddress(SocketUtils.socketAddress(inetHost, inetPort));
     }
 
-    /**
-     * @see #localAddress(SocketAddress)
-     */
     public B localAddress(InetAddress inetHost, int inetPort) {
         return localAddress(new InetSocketAddress(inetHost, inetPort));
     }
 
     /**
-     * Validate all the parameters. Sub-classes may override this, but should
-     * call the super method in that case.
+     * 验证参数
      */
     public B validate() {
         if (group == null) {
@@ -114,7 +103,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     /**
-     * Create a new {@link Channel} and register it with an {@link EventLoop}.
+     * 创建一个新的 {@link Channel} 并且把它注册到 {@link EventLoop}.
      */
     public ChannelFuture register() {
         validate();
@@ -122,7 +111,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     /**
-     * Create a new {@link Channel} and bind it.
+     * 创建新的 {@link Channel} 并且绑定到localAddress
      */
     public ChannelFuture bind() {
         validate();
@@ -133,30 +122,18 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         return doBind(localAddress);
     }
 
-    /**
-     * Create a new {@link Channel} and bind it.
-     */
     public ChannelFuture bind(int inetPort) {
         return bind(new InetSocketAddress(inetPort));
     }
 
-    /**
-     * Create a new {@link Channel} and bind it.
-     */
     public ChannelFuture bind(String inetHost, int inetPort) {
         return bind(SocketUtils.socketAddress(inetHost, inetPort));
     }
 
-    /**
-     * Create a new {@link Channel} and bind it.
-     */
     public ChannelFuture bind(InetAddress inetHost, int inetPort) {
         return bind(new InetSocketAddress(inetHost, inetPort));
     }
 
-    /**
-     * Create a new {@link Channel} and bind it.
-     */
     public ChannelFuture bind(SocketAddress localAddress) {
         validate();
         return doBind(ObjectUtil.checkNotNull(localAddress, "localAddress"));
@@ -170,76 +147,27 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
 
         if (regFuture.isDone()) {
-            // At this point we know that the registration was complete and successful.
+            // 注册完成
             ChannelPromise promise = channel.newPromise();
+            //绑定
             doBind0(regFuture, channel, localAddress, promise);
             return promise;
         } else {
-            // Registration future is almost always fulfilled already, but just in case it's not.
+            // 注册还没完成
             final PendingRegistrationPromise promise = new PendingRegistrationPromise(channel);
             regFuture.addListener((ChannelFutureListener) future -> {
                 Throwable cause = future.cause();
                 if (cause != null) {
-                    // Registration on the EventLoop failed so fail the ChannelPromise directly to not cause an
-                    // IllegalStateException once we try to access the EventLoop of the Channel.
                     promise.setFailure(cause);
                 } else {
-                    // Registration was successful, so set the correct executor to use.
-                    // See https://github.com/netty/netty/issues/2586
+                    //注册完成，开始绑定
                     promise.registered();
-
                     doBind0(regFuture, channel, localAddress, promise);
                 }
             });
             return promise;
         }
     }
-
-    /**
-     * 初始化并把channel注册到EventLoop上
-     *
-     * @return
-     */
-    final ChannelFuture initAndRegister() {
-        Channel channel = null;
-        try {
-            channel = channelFactory.newChannel();
-            init(channel);
-        } catch (Throwable t) {
-            if (channel != null) {
-                // channel can be null if newChannel crashed (eg SocketException("too many open files"))
-                channel.unsafe().closeForcibly();
-                // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
-                return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
-            }
-            // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
-            return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
-        }
-
-        ChannelFuture regFuture = group().register(channel);
-        if (regFuture.cause() != null) {
-            if (channel.isRegistered()) {
-                channel.close();
-            } else {
-                channel.unsafe().closeForcibly();
-            }
-        }
-
-        // If we are here and the promise is not failed, it's one of the following cases:
-        // 1) If we attempted registration from the event loop, the registration has been completed at this point.
-        //    i.e. It's safe to attempt bind() or connect() now because the channel has been registered.
-        // 2) If we attempted registration from the other thread, the registration request has been successfully
-        //    added to the event loop's task queue for later execution.
-        //    i.e. It's safe to attempt bind() or connect() now:
-        //         because bind() or connect() will be executed *after* the scheduled registration task is executed
-        //         because register(), bind(), and connect() are all bound to the same thread.
-
-        return regFuture;
-    }
-
-    public abstract AbstractBootstrapConfig<B, C> config();
-
-    abstract void init(Channel channel) throws Exception;
 
     private static void doBind0(
         final ChannelFuture regFuture, final Channel channel,
@@ -255,6 +183,62 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             }
         });
     }
+
+    /**
+     * 创建channel并注册到EventLoop上
+     *
+     * @return
+     */
+    final ChannelFuture initAndRegister() {
+        Channel channel = null;
+        try {
+            //创建channel对象
+            channel = channelFactory.newChannel();
+            //初始化
+            init(channel);
+        } catch (Throwable t) {
+            if (channel != null) {
+                // 关闭channel
+                channel.unsafe().closeForcibly();
+                // 因为channel还没有注册，因此使用GlobalEventExecutor.INSTANCE
+                return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
+            }
+            return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
+        }
+
+        //注册
+        ChannelFuture regFuture = group().register(channel);
+
+        //如果注册异常，关闭channel
+        if (regFuture.cause() != null) {
+            if (channel.isRegistered()) {
+                channel.close();
+            } else {
+                channel.unsafe().closeForcibly();
+            }
+        }
+
+        // 注册成功
+        // 1)此操作由event loop发起，接下来进行bind()和connect()操作是安全的
+        // 2)此操作由其他线程发起，register任务被放入task队列，接下来进行bind()和connect()操作是安全的
+        // 因为这些操作会被排到register后面
+        return regFuture;
+    }
+
+    /**
+     * 配置
+     *
+     * @return
+     */
+    public abstract AbstractBootstrapConfig<B, C> config();
+
+    /**
+     * 初始化channel
+     *
+     * @param channel
+     * @throws Exception
+     */
+    abstract void init(Channel channel) throws Exception;
 
     /**
      * the {@link ChannelHandler} to use for serving the requests.
@@ -278,8 +262,9 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     static final class PendingRegistrationPromise extends DefaultChannelPromise {
 
-        // Is set to the correct EventExecutor once the registration was successful. Otherwise it will
-        // stay null and so the GlobalEventExecutor.INSTANCE will be used for notifications.
+        /**
+         * 一旦注册成功就用channel对应的event loop，否则就是用GlobalEventExecutor.INSTANCE
+         */
         private volatile boolean registered;
 
         PendingRegistrationPromise(Channel channel) {
@@ -293,12 +278,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         @Override
         protected EventExecutor executor() {
             if (registered) {
-                // If the registration was a success executor is set.
-                //
-                // See https://github.com/netty/netty/issues/2586
                 return super.executor();
             }
-            // The registration failed so we can only use the GlobalEventExecutor as last resort to notify.
             return GlobalEventExecutor.INSTANCE;
         }
     }
