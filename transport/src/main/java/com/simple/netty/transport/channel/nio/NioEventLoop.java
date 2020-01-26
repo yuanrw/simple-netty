@@ -85,7 +85,7 @@ public class NioEventLoop extends SingleThreadEventLoop {
                 logger.error("error", e);
             }
 
-            // 如果是 >= shutting down状态，一定要去处理它
+            //判断是否处于shutdown状态
             try {
                 if (isShuttingDown()) {
                     closeAll();

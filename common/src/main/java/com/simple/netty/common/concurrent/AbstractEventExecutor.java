@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledFuture;
@@ -71,6 +72,12 @@ public abstract class AbstractEventExecutor extends AbstractExecutorService impl
     @Override
     public Future<?> shutdownGracefully() {
         return shutdownGracefully(DEFAULT_SHUTDOWN_QUIET_PERIOD, DEFAULT_SHUTDOWN_TIMEOUT, TimeUnit.SECONDS);
+    }
+
+    @Override
+    @Deprecated
+    public List<Runnable> shutdownNow() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

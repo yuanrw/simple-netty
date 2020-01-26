@@ -1,6 +1,5 @@
 package com.simple.netty.common.concurrent;
 
-import com.simple.netty.common.internal.InternalThreadLocalMap;
 import com.simple.netty.common.internal.PlatformDependent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,10 +104,10 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private Throwable cause0(Object result) {
-        if (!(result instanceof RuntimeException)) {
+        if (!(result instanceof Throwable)) {
             return null;
         }
-        return ((RuntimeException) result).getCause();
+        return (Throwable) result;
     }
 
     @Override
@@ -229,13 +228,19 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         if (result == SUCCESS) {
             return null;
         }
+
+        //有异常
         Throwable cause = cause0(result);
         if (cause == null) {
+            //未知异常，返回异常信息
             return (V) result;
         }
+
+        //cancel
         if (cause instanceof CancellationException) {
             throw (CancellationException) cause;
         }
+
         throw new ExecutionException(cause);
     }
 
@@ -322,54 +327,24 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
      */
     protected static void notifyListener(
         EventExecutor eventExecutor, final Future<?> future, final GenericFutureListener<?> listener) {
-        notifyListenerWithStackOverFlowProtection(
-            checkNotNull(eventExecutor, "eventExecutor"),
-            checkNotNull(future, "future"),
-            checkNotNull(listener, "listener"));
+        checkNotNull(eventExecutor, "eventExecutor");
+        checkNotNull(future, "future");
+        checkNotNull(listener, "listener");
+
+        if (eventExecutor.inEventLoop()) {
+            notifyListener0(future, listener);
+            return;
+        }
+        safeExecute(eventExecutor, () -> notifyListener0(future, listener));
     }
 
     private void notifyListeners() {
         EventExecutor executor = executor();
         if (executor.inEventLoop()) {
-            final InternalThreadLocalMap threadLocals = InternalThreadLocalMap.get();
-            final int stackDepth = threadLocals.futureListenerStackDepth();
-            if (stackDepth < MAX_LISTENER_STACK_DEPTH) {
-                threadLocals.setFutureListenerStackDepth(stackDepth + 1);
-                try {
-                    notifyListenersNow();
-                } finally {
-                    threadLocals.setFutureListenerStackDepth(stackDepth);
-                }
-                return;
-            }
+            notifyListenersNow();
+            return;
         }
-
         safeExecute(executor, this::notifyListenersNow);
-    }
-
-    /**
-     * The logic in this method should be identical to {@link #notifyListeners()} but
-     * cannot share code because the listener(s) cannot be cached for an instance of {@link DefaultPromise} since the
-     * listener(s) may be changed and is protected by a synchronized operation.
-     */
-    private static void notifyListenerWithStackOverFlowProtection(final EventExecutor executor,
-                                                                  final Future<?> future,
-                                                                  final GenericFutureListener<?> listener) {
-        if (executor.inEventLoop()) {
-            final InternalThreadLocalMap threadLocals = InternalThreadLocalMap.get();
-            final int stackDepth = threadLocals.futureListenerStackDepth();
-            if (stackDepth < MAX_LISTENER_STACK_DEPTH) {
-                threadLocals.setFutureListenerStackDepth(stackDepth + 1);
-                try {
-                    notifyListener0(future, listener);
-                } finally {
-                    threadLocals.setFutureListenerStackDepth(stackDepth);
-                }
-                return;
-            }
-        }
-
-        safeExecute(executor, () -> notifyListener0(future, listener));
     }
 
     private void notifyListenersNow() {
@@ -444,7 +419,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private boolean setFailure0(Throwable cause) {
-        return setValue0(new RuntimeException(checkNotNull(cause, "cause")));
+        return setValue0(cause);
     }
 
     private boolean setValue0(Object objResult) {
@@ -543,7 +518,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private static boolean isCancelled0(Object result) {
-        return result instanceof RuntimeException && ((RuntimeException) result).getCause() instanceof CancellationException;
+        return result instanceof CancellationException;
     }
 
     private static boolean isDone0(Object result) {

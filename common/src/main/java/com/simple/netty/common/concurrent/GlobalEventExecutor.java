@@ -5,25 +5,31 @@ import com.simple.netty.common.internal.ThreadExecutorMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 一个单线程实现的EventExecutor，单例的
- * 自动启动线程
- * 不要去扩展它的功能
+ * 这个自动启动和结束线程，不需要调用shutdown等方法
  * Date: 2020-01-21
  * Time: 11:53
  *
  * @author yrw
  */
-public final class GlobalEventExecutor extends AbstractEventExecutor {
+public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
     private static final Logger logger = LoggerFactory.getLogger(GlobalEventExecutor.class);
+
+    //此处变量顺序要注意，interval要先初始化
+
+    private static final long SCHEDULE_QUIET_PERIOD_INTERVAL = TimeUnit.SECONDS.toNanos(1);
 
     public static final GlobalEventExecutor INSTANCE = new GlobalEventExecutor();
 
     final BlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<>();
+
+    final ScheduledFutureTask<Void> quietPeriodTask = new ScheduledFutureTask<>(
+        this, () -> {}, ScheduledFutureTask.deadlineNanos(SCHEDULE_QUIET_PERIOD_INTERVAL), -SCHEDULE_QUIET_PERIOD_INTERVAL);
 
     /**
      * 线程是否启动
@@ -31,11 +37,12 @@ public final class GlobalEventExecutor extends AbstractEventExecutor {
     private final AtomicBoolean started = new AtomicBoolean();
 
     volatile Thread thread;
-    private ThreadFactory threadFactory;
+    ThreadFactory threadFactory;
 
     private final Future<?> terminationFuture = new FailedFuture<>(this, new UnsupportedOperationException());
 
     private GlobalEventExecutor() {
+        scheduledTaskQueue().add(quietPeriodTask);
         threadFactory = ThreadExecutorMap.apply(new DefaultThreadFactory(
             DefaultThreadFactory.toPoolName(getClass())), this);
     }
@@ -61,32 +68,7 @@ public final class GlobalEventExecutor extends AbstractEventExecutor {
     }
 
     @Override
-    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void shutdown() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<Runnable> shutdownNow() {
         throw new UnsupportedOperationException();
     }
 
@@ -133,26 +115,92 @@ public final class GlobalEventExecutor extends AbstractEventExecutor {
                             logger.warn("Unexpected exception from the global event executor: ", t);
                         }
                     }
+
+                    //如果没有任务，自动关闭
+
+                    Queue<ScheduledFutureTask<?>> scheduledTaskQueue = GlobalEventExecutor.this.scheduledTaskQueue;
+                    if (taskQueue.isEmpty() && (scheduledTaskQueue == null || scheduledTaskQueue.size() == 1)) {
+                        //把线程标记为stop，一定会成功因为只有一个线程
+                        boolean stopped = started.compareAndSet(true, false);
+                        assert stopped;
+
+                        // 再次判断是否有新任务提交进来了
+                        if (taskQueue.isEmpty() && (scheduledTaskQueue == null || scheduledTaskQueue.size() == 1)) {
+                            break;
+                        }
+
+                        // 有新任务，把线程取消stop
+                        if (!started.compareAndSet(false, true)) {
+                            //修改没成功，说明startThread()已被调用，新的线程已经将start改为true
+                            break;
+                        }
+
+                        //修改成功，说明新的线程还没来得及启动，那就继续用这个线程
+                        //新的线程调用startThread()不会创新新的线程
+                    }
                 }
             };
 
-            //启动工作线程
+            //创建一个线程开始工作
             final Thread t = threadFactory.newThread(taskRunner);
 
-            // Set the thread before starting it as otherwise inEventLoop() may return false and so produce
-            // an assert error.
+            // 在启动线程前set，否则inEventLoop() 可能会返回false
             thread = t;
             t.start();
         }
     }
 
-    Runnable takeTask() {
+    /**
+     * 获取下一个任务，没有会阻塞，除非添加了WAKEUP_TASK
+     * 和SingleThreadEventExecutor逻辑基本一致
+     *
+     * @return
+     */
+    private Runnable takeTask() {
         BlockingQueue<Runnable> taskQueue = this.taskQueue;
         for (; ; ) {
-            Runnable task = taskQueue.poll();
-            if (task != null) {
+            ScheduledFutureTask<?> scheduledTask = peekScheduledTask();
+            System.out.println("get task from schedule: " + scheduledTask);
+            if (scheduledTask == null) {
+                Runnable task = null;
+                try {
+                    //此处block，但是scheduledTask为空，taskQueue就一定不为空
+                    task = taskQueue.take();
+                } catch (Exception e) {
+                    // 打断忽略
+                }
                 return task;
+            } else {
+                long delayNanos = scheduledTask.delayNanos();
+                Runnable task = null;
+                if (delayNanos > 0) {
+                    try {
+                        task = taskQueue.poll(delayNanos, TimeUnit.NANOSECONDS);
+                    } catch (InterruptedException e) {
+                        // Waken up.
+                        return null;
+                    }
+                }
+
+                //如果delayNanos=0，代表定时任务立即要执行，此时一定要fetch
+                if (task == null) {
+                    fetchFromScheduledTaskQueue();
+                    task = taskQueue.poll();
+                }
+
+                if (task != null) {
+                    return task;
+                }
             }
+        }
+    }
+
+    private void fetchFromScheduledTaskQueue() {
+        long nanoTime = AbstractScheduledEventExecutor.nanoTime();
+        Runnable scheduledTask = pollScheduledTask(nanoTime);
+        while (scheduledTask != null) {
+            taskQueue.add(scheduledTask);
+            scheduledTask = pollScheduledTask(nanoTime);
         }
     }
 }

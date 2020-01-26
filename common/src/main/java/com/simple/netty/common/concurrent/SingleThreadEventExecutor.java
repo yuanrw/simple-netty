@@ -83,6 +83,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     protected SingleThreadEventExecutor(EventExecutorGroup parent, Executor executor, int maxPendingTasks) {
         super(parent);
         this.maxPendingTasks = maxPendingTasks;
+        //todo:
         this.executor = ThreadExecutorMap.apply(executor, this);
         taskQueue = newTaskQueue(this.maxPendingTasks);
     }
@@ -284,13 +285,42 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         }
 
         //状态切换完毕
-        //如果老状态是未启动，需要启动线程，把任务跑完
+        //确保线程启动，才能做shutdown
         if (ensureThreadStarted(oldState)) {
             return terminationFuture;
         }
 
+        //run方法可能是block的，唤醒它
+        taskQueue.offer(WAKEUP_TASK);
+
         //老状态是启动的
         return terminationFuture();
+    }
+
+    @Override
+    @Deprecated
+    public void shutdown() {
+        throw new UnsupportedOperationException();
+    }
+
+    private void startThread() {
+        if (state == ST_NOT_STARTED) {
+            //修改状态
+            if (STATE_UPDATER.compareAndSet(this, ST_NOT_STARTED, ST_STARTED)) {
+                boolean success = false;
+                try {
+                    //启动一个新的线程
+                    doStartThread();
+                    success = true;
+                } finally {
+                    if (!success) {
+                        STATE_UPDATER.compareAndSet(this, ST_STARTED, ST_NOT_STARTED);
+                    }
+                }
+            }
+        }
+
+        //已经启动，直接返回
     }
 
     private boolean ensureThreadStarted(int oldState) {
@@ -463,6 +493,10 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         return numTasks;
     }
 
+    protected boolean removeTask(Runnable task) {
+        return taskQueue.remove(ObjectUtil.checkNotNull(task, "task"));
+    }
+
     /**
      * 执行队列里的所有任务
      *
@@ -519,7 +553,33 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     @Override
     public void execute(Runnable task) {
         ObjectUtil.checkNotNull(task, "task");
+
+        boolean inEventLoop = inEventLoop();
+
+        //加入队列
         addTask(task);
+
+        if (!inEventLoop) {
+            //启动线程，这个方法不阻塞，会创建新线程去做核心逻辑
+            startThread();
+
+            //已经shutdown需要从队列中移除任务
+            if (isShutdown()) {
+                boolean reject = false;
+                try {
+                    if (removeTask(task)) {
+                        reject = true;
+                    }
+                } catch (UnsupportedOperationException e) {
+                    // The task queue does not support removal so the best thing we can do is to just move on and
+                    // hope we will be able to pick-up the task before its completely terminated.
+                    // In worst case we will log on termination.
+                }
+                if (reject) {
+                    logger.warn("abandon task");
+                }
+            }
+        }
     }
 
     @Override

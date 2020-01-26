@@ -35,11 +35,5 @@ public interface Future<V> extends java.util.concurrent.Future<V> {
     V getNow();
 
     @Override
-    default boolean cancel(boolean mayInterruptIfRunning) {
-        return false;
-    }
-    @Override
-    default boolean isCancelled() {
-        return false;
-    }
+    boolean cancel(boolean mayInterruptIfRunning);
 }

@@ -161,13 +161,14 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
                     //取消了从队列中移除
                     scheduledExecutor().scheduledTaskQueue().remove(this);
                 } else {
-                    // 还没到期，提交任务到EventLoop
+                    // 还没到期，提交任务到EventLoop的队列中
+                    System.out.println("add task");
                     scheduledExecutor().scheduleFromEventLoop(this);
                 }
                 return;
             }
 
-            //到期的任务
+            //到期的任务，开始执行
 
             if (periodNanos == 0) {
                 //只运行一次

@@ -95,4 +95,14 @@ public abstract class CompleteFuture<V> extends AbstractFuture<V> {
     public boolean isDone() {
         return true;
     }
+
+    @Override
+    public boolean isCancelled() {
+        return false;
+    }
+
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        return false;
+    }
 }

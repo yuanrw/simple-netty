@@ -16,10 +16,6 @@
             <groupId>com.simple.netty</groupId>
             <artifactId>common</artifactId>
         </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-        </dependency>
     </dependencies>
 
 </project>

@@ -5,7 +5,6 @@ import com.simple.netty.common.internal.ObjectUtil;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static com.simple.netty.common.concurrent.ScheduledFutureTask.deadlineNanos;
@@ -190,7 +189,6 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
      * @param task 定时任务
      */
     final void scheduleFromEventLoop(final ScheduledFutureTask<?> task) {
-        // nextTaskId a long and so there is no chance it will overflow back to 0
         scheduledTaskQueue().add(task.setId(++nextTaskId));
     }
 
@@ -198,6 +196,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         if (inEventLoop()) {
             scheduleFromEventLoop(task);
         } else {
+            //如果时间没到，task会把自己加入队列中
             execute(task);
         }
         return task;
@@ -208,7 +207,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         if (inEventLoop()) {
             scheduledTaskQueue().remove(task);
         } else {
-            // task will remove itself from scheduled task queue when it runs
+            //task会把自己移出队列
             execute(task);
         }
     }
