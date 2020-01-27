@@ -1,7 +1,6 @@
 package com.simple.netty.common.concurrent;
 
 import com.simple.netty.common.internal.ObjectUtil;
-import com.simple.netty.common.internal.ThreadExecutorMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,11 +79,14 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         this(parent, executor, 16);
     }
 
+    protected SingleThreadEventExecutor(EventExecutorGroup parent, ThreadFactory threadFactory) {
+        this(parent, new ThreadPerTaskExecutor(threadFactory));
+    }
+
     protected SingleThreadEventExecutor(EventExecutorGroup parent, Executor executor, int maxPendingTasks) {
         super(parent);
         this.maxPendingTasks = maxPendingTasks;
-        //todo:
-        this.executor = ThreadExecutorMap.apply(executor, this);
+        this.executor = executor;
         taskQueue = newTaskQueue(this.maxPendingTasks);
     }
 

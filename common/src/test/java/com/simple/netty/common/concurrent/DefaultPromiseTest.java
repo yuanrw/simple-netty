@@ -225,10 +225,7 @@ public class DefaultPromiseTest {
         EventExecutor executor = new TestEventExecutor();
         int expectedCount = numListenersBefore + 2;
         final CountDownLatch latch = new CountDownLatch(expectedCount);
-        final FutureListener<Void> listener = future -> {
-            System.out.println("1");
-            latch.countDown();
-        };
+        final FutureListener<Void> listener = future -> latch.countDown();
         final Promise<Void> promise = new DefaultPromise<>(executor);
 
         executor.execute(() -> {
@@ -244,8 +241,6 @@ public class DefaultPromiseTest {
 
         assertTrue("Should have notified " + expectedCount + " listeners",
             latch.await(5, TimeUnit.SECONDS));
-
-        executor.shutdownGracefully().sync();
     }
 
     /**
@@ -312,7 +307,7 @@ public class DefaultPromiseTest {
     private static final class TestEventExecutor extends SingleThreadEventExecutor {
 
         protected TestEventExecutor() {
-            super(null, GlobalEventExecutor.INSTANCE);
+            super(null, Executors.defaultThreadFactory());
         }
 
         @Override

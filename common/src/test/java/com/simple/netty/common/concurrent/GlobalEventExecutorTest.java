@@ -58,18 +58,20 @@ public class GlobalEventExecutorTest {
         assertThat(task.ran.get(), is(true));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testScheduledTasks() throws Exception {
         TestRunnable task = new TestRunnable(0);
         ScheduledFuture<?> f = e.schedule(task, 1500, TimeUnit.MILLISECONDS);
         f.sync();
+        // check跑了任务
         assertThat(task.ran.get(), is(true));
 
-        // Ensure the thread is still running.
+        // 线程还在
         Thread thread = e.thread;
         assertThat(thread, is(not(nullValue())));
         assertThat(thread.isAlive(), is(true));
 
+        //后面会正常关闭
         thread.join();
     }
 

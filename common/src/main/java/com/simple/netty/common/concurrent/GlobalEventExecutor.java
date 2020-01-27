@@ -1,7 +1,6 @@
 package com.simple.netty.common.concurrent;
 
 import com.simple.netty.common.internal.ObjectUtil;
-import com.simple.netty.common.internal.ThreadExecutorMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,8 +42,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
 
     private GlobalEventExecutor() {
         scheduledTaskQueue().add(quietPeriodTask);
-        threadFactory = ThreadExecutorMap.apply(new DefaultThreadFactory(
-            DefaultThreadFactory.toPoolName(getClass())), this);
+        threadFactory = new DefaultThreadFactory(DefaultThreadFactory.toPoolName(getClass()));
     }
 
     @Override
@@ -116,7 +114,13 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
                         }
                     }
 
-                    //如果没有任务，自动关闭
+                    if (task != quietPeriodTask) {
+                        continue;
+                    }
+
+                    // 跑完quietPeriodTask之后，任务会自动入scheduledTaskQueue
+                    // 如果没有别的任务，就形成taskQueue=empty，scheduledTaskQueue.size = 1的状态
+                    // 此时自动关闭
 
                     Queue<ScheduledFutureTask<?>> scheduledTaskQueue = GlobalEventExecutor.this.scheduledTaskQueue;
                     if (taskQueue.isEmpty() && (scheduledTaskQueue == null || scheduledTaskQueue.size() == 1)) {
@@ -132,6 +136,7 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
                         // 有新任务，把线程取消stop
                         if (!started.compareAndSet(false, true)) {
                             //修改没成功，说明startThread()已被调用，新的线程已经将start改为true
+                            //这个线程就可以退休了
                             break;
                         }
 
@@ -160,7 +165,6 @@ public final class GlobalEventExecutor extends AbstractScheduledEventExecutor {
         BlockingQueue<Runnable> taskQueue = this.taskQueue;
         for (; ; ) {
             ScheduledFutureTask<?> scheduledTask = peekScheduledTask();
-            System.out.println("get task from schedule: " + scheduledTask);
             if (scheduledTask == null) {
                 Runnable task = null;
                 try {
