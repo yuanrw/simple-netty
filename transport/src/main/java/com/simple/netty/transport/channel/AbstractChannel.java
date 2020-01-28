@@ -44,6 +44,9 @@ public abstract class AbstractChannel implements Channel {
      */
     private volatile boolean registered;
 
+    /**
+     * close()是否被调用
+     */
     private boolean closeInitiated;
     private Throwable initialCloseCause;
 
@@ -293,6 +296,16 @@ public abstract class AbstractChannel implements Channel {
         return pipeline.voidPromise();
     }
 
+    /**
+     * Unsafe的骨架实现
+     * 主要实现方法：
+     * register
+     * bind
+     * disconnect
+     * closeForcibly
+     * write
+     * flush
+     */
     protected abstract class AbstractUnsafe implements Unsafe {
 
         /**
@@ -330,6 +343,11 @@ public abstract class AbstractChannel implements Channel {
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
+            //已经注册了
+            if (isRegistered()) {
+                promise.setFailure(new IllegalStateException("registered to an event loop already"));
+                return;
+            }
 
             AbstractChannel.this.eventLoop = eventLoop;
 
@@ -346,8 +364,10 @@ public abstract class AbstractChannel implements Channel {
                     logger.warn(
                         "Force-closing a channel whose registration task was not accepted by an event loop: {}",
                         AbstractChannel.this, t);
+                    //关闭channel
                     closeForcibly();
                     closeFuture.setClosed();
+                    //promise置为失败
                     safeSetFailure(promise, t);
                 }
             }
@@ -355,10 +375,11 @@ public abstract class AbstractChannel implements Channel {
 
         private void register0(ChannelPromise promise) {
             try {
-                //如果是在队列里执行的，可能Channel已经被关闭了
+                //确保channel打开的
                 if (!ensureOpen(promise)) {
                     return;
                 }
+                //保留初始状态，neverRegistered后面会改动
                 boolean firstRegistration = neverRegistered;
 
                 //注册
@@ -407,6 +428,7 @@ public abstract class AbstractChannel implements Channel {
                 return;
             }
 
+            //判断是否需要fireActive
             if (!wasActive && isActive()) {
                 invokeLater(pipeline::fireChannelActive);
             }
@@ -436,7 +458,8 @@ public abstract class AbstractChannel implements Channel {
             }
 
             safeSetSuccess(promise);
-            closeIfClosed(); // doDisconnect() might have closed the channel
+            //关闭channel
+            closeIfClosed();
         }
 
         @Override
@@ -452,8 +475,11 @@ public abstract class AbstractChannel implements Channel {
 
             if (closeInitiated) {
                 if (closeFuture.isDone()) {
-                    // Closed already.
+                    // 已经关闭
                     safeSetSuccess(promise);
+                } else if (!(promise instanceof VoidChannelPromise)) {
+                    // This means close() was called before so we just register a listener and return
+                    closeFuture.addListener((ChannelFutureListener) future -> promise.setSuccess());
                 }
                 return;
             }
@@ -462,14 +488,14 @@ public abstract class AbstractChannel implements Channel {
 
             final boolean wasActive = isActive();
 
-            //发送缓冲区，让jvm回收
+            //让jvm回收缓冲区
             final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             this.outboundBuffer = null;
 
             try {
                 doClose0(promise);
             } finally {
-                //如果发送缓冲区有数据，全部失败
+                //把message全部失败
                 if (outboundBuffer != null) {
                     outboundBuffer.failFlushed(cause);
                     outboundBuffer.close(closeCause);
@@ -527,7 +553,8 @@ public abstract class AbstractChannel implements Channel {
                 return;
             }
 
-            //为了防止Deregister的时候ChannelPipeline还在做别的操作
+            //为了防止Deregister的时候Channel还在做别的操作
+            //放到队列中执行
 
             invokeLater(() -> {
                 try {
@@ -573,7 +600,7 @@ public abstract class AbstractChannel implements Channel {
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null) {
                 // 说明channel已经关闭，需要手动置为失败
-                safeSetFailure(promise, newClosedChannelException(initialCloseCause));
+                safeSetFailure(promise, initialCloseCause);
                 msg.release();
                 return;
             }
@@ -591,9 +618,10 @@ public abstract class AbstractChannel implements Channel {
                 return;
             }
 
-            //标记flushed
+            //标记本次要flush的消息范围
             outboundBuffer.addFlush();
 
+            //开始flush
             flush0();
         }
 
@@ -618,7 +646,7 @@ public abstract class AbstractChannel implements Channel {
                         outboundBuffer.failFlushed(new NotYetConnectedException());
                     } else {
                         //关闭状态
-                        outboundBuffer.failFlushed(newClosedChannelException(initialCloseCause));
+                        outboundBuffer.failFlushed(initialCloseCause);
                     }
                 } finally {
                     inFlush0 = false;
@@ -634,14 +662,6 @@ public abstract class AbstractChannel implements Channel {
             }
         }
 
-        private ClosedChannelException newClosedChannelException(Throwable cause) {
-            ClosedChannelException exception = new ClosedChannelException();
-            if (cause != null) {
-                exception.initCause(cause);
-            }
-            return exception;
-        }
-
         @Override
         public final ChannelPromise voidPromise() {
             assertEventLoop();
@@ -654,12 +674,12 @@ public abstract class AbstractChannel implements Channel {
                 return true;
             }
 
-            safeSetFailure(promise, newClosedChannelException(initialCloseCause));
+            safeSetFailure(promise, initialCloseCause);
             return false;
         }
 
         /**
-         * Marks the specified {@code promise} as success.  If the {@code promise} is done already, log a message.
+         * 把{@code promise}标记为成功. 如果{@code promise}已经complete，打日志.
          */
         protected final void safeSetSuccess(ChannelPromise promise) {
             if (!promise.trySuccess()) {
@@ -668,7 +688,7 @@ public abstract class AbstractChannel implements Channel {
         }
 
         /**
-         * Marks the specified {@code promise} as failure.  If the {@code promise} is done already, log a message.
+         * 把{@code promise}标记为失败. 如果{@code promise}已经complete, 打日志.
          */
         protected final void safeSetFailure(ChannelPromise promise, Throwable cause) {
             if (!promise.tryFailure(cause)) {
@@ -685,17 +705,7 @@ public abstract class AbstractChannel implements Channel {
 
         private void invokeLater(Runnable task) {
             try {
-                // This method is used by outbound operation implementations to trigger an inbound event later.
-                // They do not trigger an inbound event immediately because an outbound operation might have been
-                // triggered by another inbound event handler method.  If fired immediately, the call stack
-                // will look like this for example:
-                //
-                //   handlerA.inboundBufferUpdated() - (1) an inbound handler method closes a connection.
-                //   -> handlerA.ctx.close()
-                //      -> channel.unsafe.close()
-                //         -> handlerA.channelInactive() - (2) another inbound handler method called while in (1) yet
-                //
-                // which means the execution of two inbound handler methods of the same handler overlap undesirably.
+                //排队执行
                 eventLoop().execute(task);
             } catch (RejectedExecutionException e) {
                 logger.warn("Can't invoke task later as EventLoop rejected it", e);
@@ -723,24 +733,22 @@ public abstract class AbstractChannel implements Channel {
     }
 
     /**
-     * Bind the {@link Channel} to the {@link SocketAddress}
+     * 把{@link SocketAddress}绑定到{@link Channel}上
      */
     protected abstract void doBind(SocketAddress localAddress) throws Exception;
 
     /**
-     * Disconnect this {@link Channel} from its remote peer
+     * 将{@link Channel}和远程地址断开连接
      */
     protected abstract void doDisconnect() throws Exception;
 
     /**
-     * Close the {@link Channel}
+     * 关闭{@link Channel}
      */
     protected abstract void doClose() throws Exception;
 
     /**
-     * Deregister the {@link Channel} from its {@link EventLoop}.
-     * <p>
-     * Sub-classes may override this method
+     * 将{@link Channel}从{@link EventLoop}上取消注册.
      */
     protected void doDeregister() throws Exception {
         // NOOP

@@ -88,7 +88,9 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
     }
 
     /**
-     * 可以处理Byte的NioUnsafe
+     * 可以读取Byte的NioUnsafe
+     * 主要实现方法：
+     * read
      */
     protected class NioByteUnsafe extends AbstractNioUnsafe {
 
@@ -106,6 +108,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 do {
                     //申请一个ByteBuf
                     byteBuf = allocator.heapBuffer();
+                    //读取byte
                     int lastBytesRead = doReadBytes(byteBuf);
                     if (lastBytesRead <= 0) {
                         // 没有读入字节，需要释放byteBuf

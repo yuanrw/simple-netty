@@ -219,15 +219,13 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     protected void addTask(Runnable task) {
         ObjectUtil.checkNotNull(task, "task");
         if (!offerTask(task)) {
-            logger.warn("abandon task");
-            //todo：拒绝任务
+            reject();
         }
     }
 
     final boolean offerTask(Runnable task) {
         if (isShutdown()) {
-            logger.warn("abandon task");
-            //todo：拒绝任务
+            reject();
         }
         return taskQueue.offer(task);
     }
@@ -303,6 +301,10 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     @Deprecated
     public void shutdown() {
         throw new UnsupportedOperationException();
+    }
+
+    protected static void reject() {
+        throw new RejectedExecutionException("event executor terminated");
     }
 
     private void startThread() {
@@ -578,7 +580,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                     // In worst case we will log on termination.
                 }
                 if (reject) {
-                    logger.warn("abandon task");
+                    reject();
                 }
             }
         }

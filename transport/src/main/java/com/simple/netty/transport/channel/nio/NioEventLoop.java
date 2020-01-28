@@ -1,5 +1,6 @@
 package com.simple.netty.transport.channel.nio;
 
+import com.simple.netty.common.concurrent.ScheduledFuture;
 import com.simple.netty.common.internal.ObjectUtil;
 import com.simple.netty.transport.channel.EventLoop;
 import com.simple.netty.transport.channel.SingleThreadEventLoop;
@@ -14,7 +15,6 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**

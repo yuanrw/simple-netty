@@ -35,7 +35,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     protected final int readInterestOp;
 
     /**
-     * Channel注册到EventLoop之后返回的选择键
+     * Selector注册到SelectableChannel返回的key
      */
     volatile SelectionKey selectionKey;
 
@@ -45,10 +45,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     boolean readPending;
 
     /**
-     * The future of the current connection attempt.  If not null, subsequent
-     * connection attempts will fail.
+     * connect的异步结果
      */
     private ChannelPromise connectPromise;
+
     private Future<?> connectTimeoutFuture;
 
     /**
@@ -174,6 +174,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
     /**
      * NioUnsafe的骨架实现
+     * 主要实现方法：
+     * connect
+     * flush
+     * forceFlush
      */
     protected abstract class AbstractNioUnsafe extends AbstractUnsafe implements NioUnsafe {
 
@@ -182,15 +186,13 @@ public abstract class AbstractNioChannel extends AbstractChannel {
          */
         protected final void removeReadOp() {
             SelectionKey key = selectionKey();
-            // Check first if the key is still valid as it may be canceled as part of the deregistration
-            // from the EventLoop
-            // See https://github.com/netty/netty/issues/2104
+            //判断key是否还有效，因为deregister可能会把key清除
             if (!key.isValid()) {
                 return;
             }
             int interestOps = key.interestOps();
             if ((interestOps & readInterestOp) != 0) {
-                // only remove readInterestOp if needed
+                // 仅仅把read清除
                 key.interestOps(interestOps & ~readInterestOp);
             }
         }
@@ -226,17 +228,20 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                     int connectTimeoutMillis = config().getConnectTimeoutMillis();
                     if (connectTimeoutMillis > 0) {
                         connectTimeoutFuture = eventLoop().submit(() -> {
+                            //检查是否过了超时时间
                             if (System.nanoTime() - now > connectTimeoutMillis) {
                                 ChannelPromise connectPromise = AbstractNioChannel.this.connectPromise;
                                 RuntimeException runtimeException = new RuntimeException("connection timed out: " + remoteAddress);
+                                //如果connectPromise.tryFailure成功，就是超时
                                 if (connectPromise != null && connectPromise.tryFailure(runtimeException)) {
+                                    //超时，关闭channel
                                     close(voidPromise());
                                 }
                             }
                         });
                     }
 
-                    //添加连接成功的监听器
+                    //添加监听器
                     promise.addListener((ChannelFutureListener) future -> {
                         if (future.isCancelled()) {
                             if (connectTimeoutFuture != null) {
@@ -254,6 +259,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             }
         }
 
+        /**
+         * 连接成功的处理
+         *
+         * @param promise
+         * @param wasActive
+         */
         private void fulfillConnectPromise(ChannelPromise promise, boolean wasActive) {
             if (promise == null) {
                 // Closed via cancellation and the promise has been notified already.
@@ -276,6 +287,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             }
         }
 
+        /**
+         * 连接失败的处理
+         *
+         * @param promise
+         * @param cause
+         */
         private void fulfillConnectPromise(ChannelPromise promise, Throwable cause) {
             if (promise == null) {
                 return;

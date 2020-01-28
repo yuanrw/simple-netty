@@ -39,6 +39,9 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
         super.doBeginRead();
     }
 
+    /**
+     * 可以读取Object的NioUnsafe
+     */
     private final class NioMessageUnsafe extends AbstractNioUnsafe {
 
         private final List<Object> readBuf = new ArrayList<>();
@@ -67,12 +70,16 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             }
 
             int size = readBuf.size();
+
+            //激活read
             for (int i = 0; i < size; i++) {
                 readPending = false;
                 pipeline.fireChannelRead(readBuf.get(i));
             }
+
             readBuf.clear();
 
+            //激活read complete
             pipeline.fireChannelReadComplete();
 
             if (exception != null) {

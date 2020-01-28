@@ -8,6 +8,7 @@ import com.simple.netty.common.internal.ObjectUtil;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * 只是用来传参的，什么都做不了的promise
  * Date: 2020-01-11
  * Time: 17:35
  *
