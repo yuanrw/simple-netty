@@ -1,7 +1,7 @@
 package com.simple.netty.transport.channel;
 
 /**
- * Inbound表示由IO线程发起的操作
+ * 事件激活
  * Date: 2020-01-02
  * Time: 20:35
  *

@@ -3,6 +3,8 @@ package com.simple.netty.transport.channel;
 import java.net.SocketAddress;
 
 /**
+ * 流出时间处理器
+ * Outbound表示由用户应用程序发起的操作
  * Date: 2020-01-03
  * Time: 15:28
  *

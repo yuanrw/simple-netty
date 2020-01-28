@@ -1,6 +1,8 @@
 package com.simple.netty.transport.channel;
 
 /**
+ * 流入事件处理器
+ * Inbound表示由IO线程发起的操作
  * Date: 2020-01-03
  * Time: 15:34
  *

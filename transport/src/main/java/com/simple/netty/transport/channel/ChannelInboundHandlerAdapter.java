@@ -10,108 +10,81 @@ package com.simple.netty.transport.channel;
 public class ChannelInboundHandlerAdapter implements ChannelInboundHandler {
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelRegistered()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelRegistered()}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         ctx.fireChannelRegistered();
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelUnregistered()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelUnregistered()}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         ctx.fireChannelUnregistered();
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelActive()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelActive()}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         ctx.fireChannelActive();
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelInactive()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelInactive()}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         ctx.fireChannelInactive();
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelRead(Object)} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelRead(Object)}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         ctx.fireChannelRead(msg);
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelReadComplete()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelReadComplete()}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
         ctx.fireChannelReadComplete();
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireUserEventTriggered(Object)} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireUserEventTriggered(Object)}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         ctx.fireUserEventTriggered(evt);
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireChannelWritabilityChanged()} to forward
-     * to the next {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireChannelWritabilityChanged()}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
         ctx.fireChannelWritabilityChanged();
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#fireExceptionCaught(Throwable)} to forward
-     * to the next {@link ChannelHandler} in the {@link ChannelPipeline}.
-     * <p>
-     * Sub-classes may override this method to change behavior.
+     * 调用{@link ChannelHandlerContext#fireExceptionCaught(Throwable)}激活
+     * {@link ChannelPipeline}中的下一个{@link ChannelInboundHandler}
      */
-
     @Override
     @SuppressWarnings("deprecation")
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
