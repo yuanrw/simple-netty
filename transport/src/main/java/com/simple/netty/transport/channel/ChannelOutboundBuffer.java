@@ -2,6 +2,7 @@ package com.simple.netty.transport.channel;
 
 import com.simple.netty.buffer.ByteBuf;
 import com.simple.netty.common.internal.ObjectPool;
+import com.simple.netty.common.internal.PromiseNotificationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,8 +60,8 @@ public final class ChannelOutboundBuffer {
         return nioBufferCount;
     }
 
-    public void addMessage(ByteBuf msg) {
-        Entry entry = Entry.newInstance(msg);
+    public void addMessage(ByteBuf msg, ChannelPromise promise) {
+        Entry entry = Entry.newInstance(msg, promise);
         //空链表
         if (tailEntry == null) {
             flushedEntry = null;
@@ -127,7 +128,10 @@ public final class ChannelOutboundBuffer {
                 int size = e.size;
                 TOTAL_PENDING_SIZE_UPDATER.addAndGet(this, -size);
 
+                //释放byteBuf
                 e.release();
+                //写入promise
+                safeFail(e.promise, cause);
                 logger.warn("Failed to mark a promise as failure because it has succeeded already: {}", cause);
 
                 e = e.recycleAndGetNext();
@@ -142,15 +146,49 @@ public final class ChannelOutboundBuffer {
         close(cause, false);
     }
 
+    private static void safeSuccess(ChannelPromise promise) {
+        PromiseNotificationUtil.trySuccess(promise, null, promise instanceof VoidChannelPromise ? null : logger);
+    }
+
+    private static void safeFail(ChannelPromise promise, Throwable cause) {
+        PromiseNotificationUtil.tryFailure(promise, cause, promise instanceof VoidChannelPromise ? null : logger);
+    }
+
     /**
-     * 异常缓冲区中第一个unFlushed的消息
+     * 移除当前消息，并且将Promise记录为success
      *
      * @return
      */
     public boolean remove() {
-        return remove(null);
+        Entry e = flushedEntry;
+        if (e == null) {
+            clearNioBuffers();
+            return false;
+        }
+        ByteBuf msg = e.buf;
+
+        //需要记录下来，后面会release
+        ChannelPromise promise = e.promise;
+        int size = e.size;
+
+        removeEntry(e);
+
+        msg.release();
+        safeSuccess(promise);
+        decrementPendingOutboundBytes(size);
+
+        // recycle the entry
+        e.recycle();
+
+        return true;
     }
 
+    /**
+     * 移除当前消息，并且将Promise记录为fail
+     *
+     * @param cause
+     * @return
+     */
     public boolean remove(Throwable cause) {
         Entry e = flushedEntry;
         //全部未发送
@@ -160,6 +198,7 @@ public final class ChannelOutboundBuffer {
         }
 
         //获取第一个unFlushed的消息
+        ChannelPromise promise = e.promise;
         int size = e.size;
         removeEntry(e);
 
@@ -168,6 +207,8 @@ public final class ChannelOutboundBuffer {
         if (cause != null) {
             logger.warn("Failed to mark a promise as failure because it has succeeded already: {}", cause);
         }
+
+        safeFail(promise, cause);
 
         //更新size，更新writable状态
         decrementPendingOutboundBytes(size);
@@ -421,18 +462,21 @@ public final class ChannelOutboundBuffer {
         Entry next;
         ByteBuf buf;
         ByteBuffer buffer;
+        ChannelPromise promise;
         int size;
 
-        static Entry newInstance(ByteBuf msg) {
+        static Entry newInstance(ByteBuf msg, ChannelPromise promise) {
             Entry entry = RECYCLER.get();
             entry.buf = msg;
             entry.size = msg.readableBytes();
+            entry.promise = promise;
             return entry;
         }
 
         void recycle() {
             next = null;
             buf = null;
+            promise = null;
         }
 
         void release() {

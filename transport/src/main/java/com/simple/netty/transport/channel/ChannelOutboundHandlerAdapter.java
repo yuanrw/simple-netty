@@ -1,5 +1,7 @@
 package com.simple.netty.transport.channel;
 
+import com.simple.netty.buffer.ByteBuf;
+
 import java.net.SocketAddress;
 
 /**
@@ -46,7 +48,7 @@ public class ChannelOutboundHandlerAdapter implements ChannelOutboundHandler {
     }
 
     @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+    public void write(ChannelHandlerContext ctx, ByteBuf msg, ChannelPromise promise) throws Exception {
         ctx.write(msg, promise);
     }
 

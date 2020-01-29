@@ -568,18 +568,18 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
     }
 
     @Override
-    public ChannelFuture write(Object msg) {
+    public ChannelFuture write(ByteBuf msg) {
         return write(msg, newPromise());
     }
 
     @Override
-    public ChannelFuture write(final Object msg, final ChannelPromise promise) {
+    public ChannelFuture write(final ByteBuf msg, final ChannelPromise promise) {
         write(msg, false, promise);
 
         return promise;
     }
 
-    void invokeWrite(Object msg, ChannelPromise promise) {
+    void invokeWrite(ByteBuf msg, ChannelPromise promise) {
         if (invokeHandler()) {
             invokeWrite0(msg, promise);
         } else {
@@ -587,7 +587,7 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
         }
     }
 
-    private void invokeWrite0(Object msg, ChannelPromise promise) {
+    private void invokeWrite0(ByteBuf msg, ChannelPromise promise) {
         try {
             ((ChannelOutboundHandler) handler()).write(this, msg, promise);
         } catch (Throwable t) {
@@ -626,12 +626,12 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
     }
 
     @Override
-    public ChannelFuture writeAndFlush(Object msg, ChannelPromise promise) {
+    public ChannelFuture writeAndFlush(ByteBuf msg, ChannelPromise promise) {
         write(msg, true, promise);
         return promise;
     }
 
-    void invokeWriteAndFlush(Object msg, ChannelPromise promise) {
+    void invokeWriteAndFlush(ByteBuf msg, ChannelPromise promise) {
         if (invokeHandler()) {
             invokeWrite0(msg, promise);
             invokeFlush0();
@@ -640,16 +640,16 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
         }
     }
 
-    private void write(Object msg, boolean flush, ChannelPromise promise) {
+    private void write(ByteBuf msg, boolean flush, ChannelPromise promise) {
         ObjectUtil.checkNotNull(msg, "msg");
         try {
             if (isNotValidPromise(promise, true)) {
-                ((ReferenceCounted) msg).release();
+                msg.release();
                 // cancelled
                 return;
             }
         } catch (RuntimeException e) {
-            ((ReferenceCounted) msg).release();
+            msg.release();
             throw e;
         }
 
@@ -664,7 +664,7 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
                 next.invokeWrite(msg, promise);
             }
         } else {
-            int size = ((ByteBuf) msg).readableBytes() & Integer.MAX_VALUE;
+            int size = msg.readableBytes() & Integer.MAX_VALUE;
             next.pipeline.incrementPendingOutboundBytes(size);
 
             final Runnable task = () -> {
@@ -684,7 +684,8 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
     }
 
     @Override
-    public ChannelFuture writeAndFlush(Object msg) {
+    public ChannelFuture writeAndFlush(ByteBuf msg) {
+        //创建一个Promise实例
         return writeAndFlush(msg, newPromise());
     }
 
@@ -782,7 +783,8 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
     }
 
     private AbstractChannelHandlerContext findContextInbound(int mask) {
-        //从头开始找
+        //向后找
+        //todo: 这里不需要判断ctx == null？
         AbstractChannelHandlerContext ctx = this;
         do {
             ctx = ctx.next;
@@ -791,7 +793,7 @@ public abstract class AbstractChannelHandlerContext implements ChannelHandlerCon
     }
 
     private AbstractChannelHandlerContext findContextOutbound(int mask) {
-        //从尾开始找
+        //向前找
         AbstractChannelHandlerContext ctx = this;
         do {
             ctx = ctx.prev;

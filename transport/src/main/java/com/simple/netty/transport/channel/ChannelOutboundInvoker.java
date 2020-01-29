@@ -1,5 +1,7 @@
 package com.simple.netty.transport.channel;
 
+import com.simple.netty.buffer.ByteBuf;
+
 import java.net.SocketAddress;
 
 /**
@@ -37,15 +39,15 @@ public interface ChannelOutboundInvoker {
 
     ChannelOutboundInvoker read();
 
-    ChannelFuture write(Object msg);
+    ChannelFuture write(ByteBuf msg);
 
-    ChannelFuture write(Object msg, ChannelPromise promise);
+    ChannelFuture write(ByteBuf msg, ChannelPromise promise);
 
     ChannelOutboundInvoker flush();
 
-    ChannelFuture writeAndFlush(Object msg, ChannelPromise promise);
+    ChannelFuture writeAndFlush(ByteBuf msg, ChannelPromise promise);
 
-    ChannelFuture writeAndFlush(Object msg);
+    ChannelFuture writeAndFlush(ByteBuf msg);
 
     ChannelPromise newPromise();
 

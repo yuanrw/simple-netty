@@ -6,6 +6,7 @@ import com.simple.netty.common.internal.ObjectUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NotYetConnectedException;
@@ -226,22 +227,22 @@ public abstract class AbstractChannel implements Channel {
     }
 
     @Override
-    public ChannelFuture write(Object msg) {
+    public ChannelFuture write(ByteBuf msg) {
         return pipeline.write(msg);
     }
 
     @Override
-    public ChannelFuture write(Object msg, ChannelPromise promise) {
+    public ChannelFuture write(ByteBuf msg, ChannelPromise promise) {
         return pipeline.write(msg, promise);
     }
 
     @Override
-    public ChannelFuture writeAndFlush(Object msg) {
+    public ChannelFuture writeAndFlush(ByteBuf msg) {
         return pipeline.writeAndFlush(msg);
     }
 
     @Override
-    public ChannelFuture writeAndFlush(Object msg, ChannelPromise promise) {
+    public ChannelFuture writeAndFlush(ByteBuf msg, ChannelPromise promise) {
         return pipeline.writeAndFlush(msg, promise);
     }
 
@@ -600,13 +601,13 @@ public abstract class AbstractChannel implements Channel {
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null) {
                 // 说明channel已经关闭，需要手动置为失败
-                safeSetFailure(promise, initialCloseCause);
+                safeSetFailure(promise, newClosedChannelException(initialCloseCause));
                 msg.release();
                 return;
             }
 
             //消息加入数组
-            outboundBuffer.addMessage(msg);
+            outboundBuffer.addMessage(msg, promise);
         }
 
         @Override
@@ -646,7 +647,7 @@ public abstract class AbstractChannel implements Channel {
                         outboundBuffer.failFlushed(new NotYetConnectedException());
                     } else {
                         //关闭状态
-                        outboundBuffer.failFlushed(initialCloseCause);
+                        outboundBuffer.failFlushed(newClosedChannelException(initialCloseCause));
                     }
                 } finally {
                     inFlush0 = false;
@@ -658,8 +659,29 @@ public abstract class AbstractChannel implements Channel {
                 //真正的写操作
                 doWrite(outboundBuffer);
             } catch (Throwable t) {
+                //写channel失败
+                if (t instanceof IOException) {
+                    initialCloseCause = t;
+                    close(voidPromise(), t, newClosedChannelException(t));
+                } else {
+                    try {
+                        //todo:
+                    } catch (Throwable t2) {
+                        initialCloseCause = t;
+                        close(voidPromise(), t2, newClosedChannelException(t));
+                    }
+                }
+            } finally {
                 inFlush0 = false;
             }
+        }
+
+        private ClosedChannelException newClosedChannelException(Throwable cause) {
+            ClosedChannelException exception = new ClosedChannelException();
+            if (cause != null) {
+                exception.initCause(cause);
+            }
+            return exception;
         }
 
         @Override
@@ -674,7 +696,7 @@ public abstract class AbstractChannel implements Channel {
                 return true;
             }
 
-            safeSetFailure(promise, initialCloseCause);
+            safeSetFailure(promise, newClosedChannelException(initialCloseCause));
             return false;
         }
 

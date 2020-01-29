@@ -1,13 +1,11 @@
 package com.simple.netty.transport.channel;
 
+import com.simple.netty.buffer.ByteBuf;
 import com.simple.netty.common.internal.PlatformDependent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Method;
 import java.net.SocketAddress;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -116,7 +114,7 @@ final class ChannelHandlerMask {
                     mask &= ~MASK_READ;
                 }
                 if (isSkippable(handlerType, "write", ChannelHandlerContext.class,
-                    Object.class, ChannelPromise.class)) {
+                    ByteBuf.class, ChannelPromise.class)) {
                     mask &= ~MASK_WRITE;
                 }
                 if (isSkippable(handlerType, "flush", ChannelHandlerContext.class)) {
@@ -137,17 +135,6 @@ final class ChannelHandlerMask {
 
     private static boolean isSkippable(
         final Class<?> handlerType, final String methodName, final Class<?>... paramTypes) throws Exception {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
-            Method m;
-            try {
-                m = handlerType.getMethod(methodName, paramTypes);
-            } catch (NoSuchMethodException e) {
-                logger.debug(
-                    "Class {} missing method {}, assume we can not skip execution", handlerType, methodName, e);
-                return false;
-            }
-            return m != null;
-        });
+        return false;
     }
-
 }

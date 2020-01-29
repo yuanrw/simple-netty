@@ -1,5 +1,7 @@
 package com.simple.netty.transport.channel;
 
+import com.simple.netty.buffer.ByteBuf;
+
 import java.net.SocketAddress;
 
 /**
@@ -26,7 +28,7 @@ public interface ChannelOutboundHandler extends ChannelHandler {
 
     void read(ChannelHandlerContext ctx) throws Exception;
 
-    void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception;
+    void write(ChannelHandlerContext ctx, ByteBuf msg, ChannelPromise promise) throws Exception;
 
     void flush(ChannelHandlerContext ctx) throws Exception;
 }

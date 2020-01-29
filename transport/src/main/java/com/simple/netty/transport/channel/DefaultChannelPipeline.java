@@ -1,8 +1,10 @@
 package com.simple.netty.transport.channel;
 
+import com.simple.netty.buffer.ByteBuf;
 import com.simple.netty.common.concurrent.EventExecutor;
 import com.simple.netty.common.concurrent.EventExecutorGroup;
 import com.simple.netty.common.internal.ObjectUtil;
+import com.simple.netty.common.internal.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,8 +22,11 @@ import java.util.concurrent.RejectedExecutionException;
 public class DefaultChannelPipeline implements ChannelPipeline {
     static final Logger logger = LoggerFactory.getLogger(DefaultChannelPipeline.class);
 
-    final AbstractChannelHandlerContext head;
-    final AbstractChannelHandlerContext tail;
+    private static final String HEAD_NAME = generateName0(HeadContext.class);
+    private static final String TAIL_NAME = generateName0(TailContext.class);
+
+    AbstractChannelHandlerContext head;
+    AbstractChannelHandlerContext tail;
 
     private Map<EventExecutorGroup, EventExecutor> childExecutors;
     private final Channel channel;
@@ -42,8 +47,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         voidPromise = new VoidChannelPromise(channel, true);
         succeededFuture = new SucceededChannelFuture(channel, null);
 
-        head = null;
-        tail = null;
+        tail = new TailContext(this);
+        head = new HeadContext(this);
+
+        head.next = tail;
+        tail.prev = head;
     }
 
     private AbstractChannelHandlerContext newContext(EventExecutorGroup group, String name, ChannelHandler handler) {
@@ -100,6 +108,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     public final ChannelPipeline addFirst(EventExecutorGroup group, String name, ChannelHandler handler) {
         final AbstractChannelHandlerContext newCtx;
         synchronized (this) {
+            name = filterName(name, handler);
 
             //创建新的Context
             newCtx = newContext(group, name, handler);
@@ -139,6 +148,17 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
 
         return this;
+    }
+
+    private String filterName(String name, ChannelHandler handler) {
+        if (name == null) {
+            return generateName0(handler.getClass());
+        }
+        return name;
+    }
+
+    private static String generateName0(Class<?> handlerType) {
+        return StringUtil.simpleClassName(handlerType) + "#0";
     }
 
     private void addFirst0(AbstractChannelHandlerContext newCtx) {
@@ -198,7 +218,6 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     private void callHandlerRemoved0(final AbstractChannelHandlerContext ctx) {
-        // Notify the complete removal.
         try {
             ctx.callHandlerRemoved();
         } catch (Throwable t) {
@@ -227,7 +246,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         final AbstractChannelHandlerContext newCtx;
         synchronized (this) {
 
-            newCtx = newContext(group, name, handler);
+            newCtx = newContext(group, filterName(name, handler), handler);
 
             addLast0(newCtx);
 
@@ -444,6 +463,59 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    private synchronized void destroy() {
+        destroyUp(head.next, false);
+    }
+
+    private void destroyUp(AbstractChannelHandlerContext ctx, boolean inEventLoop) {
+        final Thread currentThread = Thread.currentThread();
+        final AbstractChannelHandlerContext tail = this.tail;
+
+        //找到队尾
+        for (; ; ) {
+            if (ctx == tail) {
+                destroyDown(currentThread, tail.prev, inEventLoop);
+                break;
+            }
+
+            final EventExecutor executor = ctx.executor();
+            if (!inEventLoop && !executor.inEventLoop(currentThread)) {
+                final AbstractChannelHandlerContext finalCtx = ctx;
+                executor.execute(() -> destroyUp(finalCtx, true));
+                break;
+            }
+
+            ctx = ctx.next;
+            inEventLoop = false;
+        }
+    }
+
+    private void destroyDown(Thread currentThread, AbstractChannelHandlerContext ctx, boolean inEventLoop) {
+        final AbstractChannelHandlerContext head = this.head;
+
+        //从队列尾部向前遍历，一个个释放处理
+        for (; ; ) {
+            if (ctx == head) {
+                break;
+            }
+
+            final EventExecutor executor = ctx.executor();
+            if (inEventLoop || executor.inEventLoop(currentThread)) {
+                //移除ctx
+                atomicRemoveFromHandlerList(ctx);
+                //调用handler的handlerRemoved()
+                callHandlerRemoved0(ctx);
+            } else {
+                final AbstractChannelHandlerContext finalCtx = ctx;
+                executor.execute(() -> destroyDown(Thread.currentThread(), finalCtx, true));
+                break;
+            }
+
+            ctx = ctx.prev;
+            inEventLoop = false;
+        }
+    }
+
     @Override
     public ChannelPipeline fireChannelActive() {
         AbstractChannelHandlerContext.invokeChannelActive(head);
@@ -559,12 +631,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     @Override
-    public final ChannelFuture write(Object msg) {
+    public final ChannelFuture write(ByteBuf msg) {
         return tail.write(msg);
     }
 
     @Override
-    public final ChannelFuture write(Object msg, ChannelPromise promise) {
+    public final ChannelFuture write(ByteBuf msg, ChannelPromise promise) {
         return tail.write(msg, promise);
     }
 
@@ -583,12 +655,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     @Override
-    public final ChannelFuture writeAndFlush(Object msg, ChannelPromise promise) {
+    public final ChannelFuture writeAndFlush(ByteBuf msg, ChannelPromise promise) {
         return tail.writeAndFlush(msg, promise);
     }
 
     @Override
-    public final ChannelFuture writeAndFlush(Object msg) {
+    public final ChannelFuture writeAndFlush(ByteBuf msg) {
         return tail.writeAndFlush(msg);
     }
 
@@ -615,6 +687,190 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     @Override
     public Iterator<Map.Entry<String, ChannelHandler>> iterator() {
         return null;
+    }
+
+    // A special catch-all handler that handles both bytes and messages.
+    final class TailContext extends AbstractChannelHandlerContext implements ChannelInboundHandler {
+
+        TailContext(DefaultChannelPipeline pipeline) {
+            super(pipeline, null, TAIL_NAME, TailContext.class);
+            setAddComplete();
+        }
+
+        @Override
+        public ChannelHandler handler() {
+            return this;
+        }
+
+        @Override
+        public void channelRegistered(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void channelUnregistered(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void handlerRemoved(ChannelHandlerContext ctx) {
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        }
+
+        @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) {
+        }
+    }
+
+    final class HeadContext extends AbstractChannelHandlerContext
+        implements ChannelOutboundHandler, ChannelInboundHandler {
+
+        private final Channel.Unsafe unsafe;
+
+        HeadContext(DefaultChannelPipeline pipeline) {
+            super(pipeline, null, HEAD_NAME, HeadContext.class);
+            unsafe = pipeline.channel().unsafe();
+            setAddComplete();
+        }
+
+        @Override
+        public ChannelHandler handler() {
+            return this;
+        }
+
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) {
+            // NOOP
+        }
+
+        @Override
+        public void handlerRemoved(ChannelHandlerContext ctx) {
+            // NOOP
+        }
+
+        @Override
+        public void bind(
+            ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) {
+            unsafe.bind(localAddress, promise);
+        }
+
+        @Override
+        public void connect(
+            ChannelHandlerContext ctx,
+            SocketAddress remoteAddress, SocketAddress localAddress,
+            ChannelPromise promise) {
+            unsafe.connect(remoteAddress, localAddress, promise);
+        }
+
+        @Override
+        public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) {
+            unsafe.disconnect(promise);
+        }
+
+        @Override
+        public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+            unsafe.close(promise);
+        }
+
+        @Override
+        public void deregister(ChannelHandlerContext ctx, ChannelPromise promise) {
+            unsafe.deregister(promise);
+        }
+
+        @Override
+        public void read(ChannelHandlerContext ctx) {
+            unsafe.beginRead();
+        }
+
+        @Override
+        public void write(ChannelHandlerContext ctx, ByteBuf msg, ChannelPromise promise) {
+            unsafe.write(msg, promise);
+        }
+
+        @Override
+        public void flush(ChannelHandlerContext ctx) {
+            unsafe.flush();
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            ctx.fireExceptionCaught(cause);
+        }
+
+        @Override
+        public void channelRegistered(ChannelHandlerContext ctx) {
+            invokeHandlerAddedIfNeeded();
+            ctx.fireChannelRegistered();
+        }
+
+        @Override
+        public void channelUnregistered(ChannelHandlerContext ctx) {
+            ctx.fireChannelUnregistered();
+
+            //把所有handler移除
+            if (!channel.isOpen()) {
+                destroy();
+            }
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) {
+            ctx.fireChannelActive();
+
+            channel.read();
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+            ctx.fireChannelInactive();
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            ctx.fireChannelRead(msg);
+        }
+
+        @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) {
+            ctx.fireChannelReadComplete();
+
+            channel.read();
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+            ctx.fireUserEventTriggered(evt);
+        }
+
+        @Override
+        public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+            ctx.fireChannelWritabilityChanged();
+        }
     }
 
     private abstract static class PendingHandlerCallback implements Runnable {

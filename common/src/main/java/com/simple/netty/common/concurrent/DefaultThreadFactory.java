@@ -22,6 +22,10 @@ public class DefaultThreadFactory implements ThreadFactory {
 
     protected final ThreadGroup threadGroup;
 
+    public DefaultThreadFactory(Class<?> poolType) {
+        this(toPoolName(poolType));
+    }
+
     public DefaultThreadFactory(String poolName) {
         ObjectUtil.checkNotNull(poolName, "poolName");
 
